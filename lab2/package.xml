@@ -5,6 +5,7 @@
   <version>0.0.0</version>
   <description>RBE 3002 Lab #2 re-written for ROS2 Jazzy Jalisco</description>
   <maintainer email="kmherbstzuber@wpi.edu">Kylie Herbstzuber</maintainer>
+  <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
