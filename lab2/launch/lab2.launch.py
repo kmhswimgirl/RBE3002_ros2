@@ -52,7 +52,6 @@ def generate_launch_description():
         name='lab2',
         output='screen',
         parameters=[{'use_sim_time': True}]
-
     )
 
     return LaunchDescription([

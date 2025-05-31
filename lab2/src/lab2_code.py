@@ -10,7 +10,7 @@ from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist, PoseStamped, TwistStamped
 
 
-class Lab2:
+class Lab2 (Node):
 
     def __init__(self, px, py, pth):
         # Constructor
@@ -59,6 +59,7 @@ class Lab2:
             dist_traveled = math.sqrt((self.px-init_x)**2 + (self.py - init_y)**2) # euclidean dist. calculation
             self.send_speed(linear_speed,0.0)
             error = distance - dist_traveled
+            rclpy.spin_once(self, timeout_sec=0.01)
 
         self.send_speed(0.0, 0.0) # stop robot when loop is complete (i.e. distance is below tolerance)
         self.get_logger().info("ending drive")
@@ -82,6 +83,7 @@ class Lab2:
             else:
                 self.send_speed(0.0, ang_speed)
             ang_err = abs(self.pth - goal_th)
+            rclpy.spin_once(self, timeout_sec=0.01)
 
         self.send_speed(0.0, 0.0)
         self.get_logger().info("ending rotation")
@@ -151,12 +153,9 @@ class Lab2:
         return output
 
     def run(self):
-        rclpy.spin()
+        rclpy.spin(self)
 
 if __name__ == '__main__':
     rclpy.init()
-
     robot = Lab2(0,0,0)
     robot.run()
-
-    rclpy.get_logger().info('Driving')
