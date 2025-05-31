@@ -66,29 +66,35 @@ class Lab2 (Node):
 
     def rotate(self, target_heading: float, ang_speed: float):
         self.get_logger().info("starting rotation")
-        tol= 0.05  # radians
-        goal_th = target_heading
-        ang_err = 1000
+        tol = 0.2  # radians
+        
+        #used to debug go_to
+        max_spin_time = 5.0 # in SECONDS!
+        start = time.time()
 
-        if goal_th < 0 and abs(goal_th) > math.pi:
-            goal_th = 2*math.pi - goal_th
+        def normalize_angle(angle):
+            while angle > math.pi:
+                angle -= 2 * math.pi
+            while angle < -math.pi:
+                angle += 2 * math.pi
+            return angle
 
-        elif goal_th > 0 and goal_th > math.pi:
-            goal_th = goal_th - 2*math.pi
-
-        while(abs(ang_err) > tol):
-            if(goal_th < self.pth):
-                
-                self.send_speed(0.0, -ang_speed)
-            else:
-                self.send_speed(0.0, ang_speed)
-            ang_err = abs(self.pth - goal_th)
+        ang_err = normalize_angle(target_heading - self.pth)
+        while abs(ang_err) > tol:
+            if time.time() - start > max_spin_time:
+                self.get_logger().warn("infinte loop again!")
+                break
+            # debug angle error msg
+            self.get_logger().info(f"ang_err: {ang_err:.3f}, pth: {self.pth:.3f}, target: {target_heading:.3f}")
+            self.send_speed(0.0, ang_speed)
             rclpy.spin_once(self, timeout_sec=0.01)
+            ang_err = normalize_angle(target_heading - self.pth)
 
         self.send_speed(0.0, 0.0)
         self.get_logger().info("ending rotation")
 
     def go_to(self, msg: PoseStamped):
+        
         self.get_logger().info("begin go_to")
 
         #current robor position
@@ -102,9 +108,10 @@ class Lab2 (Node):
 
         self.get_logger().info("go_to: variables set")
 
-        #use some trig to get the new theta part of the pose (I <3 trig)
+        #use some trig to get the new theta part of the pose. i think i put stuff in the wrong coordinate frame before lol
         new_ang = math.atan2((new_y - init_y),(new_x - init_x))
-        self.rotate(new_ang, 0.5)
+        angle_to_turn = new_ang - self.pth
+        self.rotate(self.pth + angle_to_turn, 0.5)
 
         self.get_logger().info("begin go_to")
         time.sleep(0.05)
