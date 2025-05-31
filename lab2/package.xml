@@ -3,9 +3,8 @@
 <package format="3">
   <name>lab2</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="kmherbstzuber@wpi.edu">kymadogg</maintainer>
-  <license>TODO: License declaration</license>
+  <description>RBE 3002 Lab #2 re-written for ROS2 Jazzy Jalisco</description>
+  <maintainer email="kmherbstzuber@wpi.edu">Kylie Herbstzuber</maintainer>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
