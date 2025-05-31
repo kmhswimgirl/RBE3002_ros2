@@ -3,11 +3,12 @@
 # RBE 3002: Lab #2 (Jazzy Jalisco Version)
 import rclpy
 import math
-import rclpy.logging
+import time
 
-from rclpy.node import Node
+from rclpy import Node
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist, PoseStamped
+
 
 class Lab2(Node):
 
@@ -17,7 +18,8 @@ class Lab2(Node):
         self.py = py
         self.pth = pth
 
-        super().__init__('lab2_node')
+        # init node 'lab2'
+        super().__init__('lab2')
 
         # Subscribers
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.update_odometry)
@@ -25,6 +27,11 @@ class Lab2(Node):
         
         # publishers
         self.cmd_vel = self.create_publisher(Twist, '/cmd_vel', 10)
+
+        time.sleep(0.01)
+        self.get_logger().info("lab2 Initalized!")
+        time.sleep(0.01)
+
 
         
     def send_speed(self, linear_speed: float, angular_speed: float):
@@ -52,7 +59,7 @@ class Lab2(Node):
             self.send_speed(linear_speed,0)
             error = distance - dist_traveled
 
-            # 50ms sleep here ... not sure how to do that yet lol
+            time.sleep(0.05)
 
         self.send_speed(0,0) # stop robot when loop is complete (i.e. distance is below tolerance)
 
@@ -75,7 +82,8 @@ class Lab2(Node):
             
             error = self.pth - goal_angle
 
-            # sleep here?
+            time.sleep(0.05)
+
         self.send_speed(0,0)
 
     def go_to(self, msg: PoseStamped):
@@ -87,7 +95,8 @@ class Lab2(Node):
 
         drive_heading = math.atan2((new_pos_y - init_y), (new_pos_x - init_x))
         self.rotate(drive_heading, 0.5)
-        # sleep?
+        
+        time.sleep(0.05)
 
         drive_dist = self.euclidean_dist(init_x, init_y, new_pos_x, new_pos_y)
         self.drive(drive_dist, 0.1)
@@ -105,7 +114,7 @@ class Lab2(Node):
 
 
     # does not exist in tf2 library to my knowledge
-    def euler_from_quaternion(quaternion):
+    def euler_from_quaternion(self, quaternion):
 
         x = quaternion.x
         y = quaternion.y
@@ -135,19 +144,4 @@ class Lab2(Node):
 if __name__ == '__main__':
     robot = Lab2(0,0,0)
     robot.run()
-    rclpy.logging('Driving')
-
-    
-
-
-
-
-
-
-
-
- 
-
-
-
-
+    rclpy.get_logger().info('Driving')
