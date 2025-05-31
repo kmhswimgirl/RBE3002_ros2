@@ -5,14 +5,14 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, ExecuteProcess
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, Command
 
 def generate_launch_description():
     lab2_path = os.path.join(get_package_share_directory('lab2'))
 
     arguments = LaunchDescription([
         # set world for gazebo
-        DeclareLaunchArgument('world', default_value='empty_world', description='sim world'),
+        DeclareLaunchArgument('world', default_value='empty', description='sim world'),
         # set x position of turtlebot3
         DeclareLaunchArgument('x_pose', default_value='.01', description='turtlebot X coord'),
         # set y position of turtlebot3
@@ -39,16 +39,20 @@ def generate_launch_description():
         ]
     )
 
-    rviz = ExecuteProcess(
-        cmd=['rviz2'],
-        output='screen'
+    rviz = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([os.path.join(
+            get_package_share_directory('turtlebot3_bringup'), 'launch'), '/rviz2.launch.py']),
+        launch_arguments = [
+        ]
     )
 
     lab2_node = Node(
         package='lab2',
         executable='lab2_code.py',
         name='lab2',
-        output='screen'
+        output='screen',
+        parameters=[{'use_sim_time': True}]
+
     )
 
     return LaunchDescription([
