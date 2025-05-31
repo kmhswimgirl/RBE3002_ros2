@@ -4,11 +4,12 @@
 import rclpy
 import math
 import time
+import tf_transformations
 
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist, PoseStamped, TwistStamped
-
+from tf_transformations import euler_from_quaternion
 
 class Lab2 (Node):
 
@@ -29,6 +30,8 @@ class Lab2 (Node):
         self.cmd_vel = self.create_publisher(Twist, '/cmd_vel', 10)
 
         self.get_logger().info("lab2 Initalized!")
+
+        self.drive(5.0, 0.1)
 
 
     def send_speed(self, linear_speed: float, angular_speed: float):
@@ -65,31 +68,7 @@ class Lab2 (Node):
         self.get_logger().info("ending drive")
 
     def rotate(self, target_heading: float, ang_speed: float):
-        self.get_logger().info("starting rotation")
-        tol = 0.2  # radians
-        
-        #used to debug go_to
-        max_spin_time = 5.0 # in SECONDS!
-        start = time.time()
-
-        def normalize_angle(angle):
-            while angle > math.pi:
-                angle -= 2 * math.pi
-            while angle < -math.pi:
-                angle += 2 * math.pi
-            return angle
-
-        ang_err = normalize_angle(target_heading - self.pth)
-        while abs(ang_err) > tol:
-            if time.time() - start > max_spin_time:
-                self.get_logger().warn("infinte loop again!")
-                break
-            # debug angle error msg
-            self.get_logger().info(f"ang_err: {ang_err:.3f}, pth: {self.pth:.3f}, target: {target_heading:.3f}")
-            self.send_speed(0.0, ang_speed)
-            rclpy.spin_once(self, timeout_sec=0.01)
-            ang_err = normalize_angle(target_heading - self.pth)
-
+       
         self.send_speed(0.0, 0.0)
         self.get_logger().info("ending rotation")
 
@@ -113,7 +92,6 @@ class Lab2 (Node):
         angle_to_turn = new_ang - self.pth
         self.rotate(self.pth + angle_to_turn, 0.5)
 
-        self.get_logger().info("begin go_to")
         time.sleep(0.05)
         #another use of pythagorean theorem to calc distance (i think its called something Euclidian???)
         # basically a control c, control v from drive() method && change a var name or two
@@ -127,33 +105,12 @@ class Lab2 (Node):
         self.px = msg.pose.pose.position.x
         self.py = msg.pose.pose.position.y
         quat_orig = msg.pose.pose.orientation
-        (r, p, y) = self.euler_from_quaternion(quat_orig)
+        (r, p, y) = tf_transformations.euler_from_quaternion([quat_orig.x, quat_orig.y, quat_orig.z, quat_orig.w])
         self.pth = y
 
     def smooth_drive(self, distance: float, linear_speed: float):
         pass
 
-
-    # does not exist in tf2 library to my knowledge
-    def euler_from_quaternion(self, quaternion):
-
-        x = quaternion.x
-        y = quaternion.y
-        z = quaternion.z
-        w = quaternion.w
-
-        sin_r = 2 * (w * x + y * z)
-        cos_r = 1 - 2 * (x**2 + y**2)
-        roll = math.atan2(sin_r, cos_r)
-
-        sin_p = 2 * (w * y - z * x)
-        pitch = math.asin(sin_p)
-
-        sin_y = 2 * (w * z + x * y)
-        cos_y = 1 - 2 * (y * y + z * z)
-        yaw = math.atan2(sin_y, cos_y)
-
-        return roll, pitch, yaw
 
     def euclidean_dist(self, x1: float, y1: float, x2: float, y2: float):
         output = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
