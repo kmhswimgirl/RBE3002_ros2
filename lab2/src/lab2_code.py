@@ -68,7 +68,18 @@ class Lab2 (Node):
         self.get_logger().info("ending drive")
 
     def rotate(self, target_heading: float, ang_speed: float):
-       
+        error = 1000
+        tolerance = 0.2
+        target_heading = self.normalize_angle((self.pth + target_heading))
+    
+        while abs(error) > tolerance:
+            current_heading = self.pth
+            self.get_logger().info(f"Current heading: {self.pth}")
+            
+            self.send_speed(0.0, ang_speed)
+            rclpy.spin_once(self, timeout_sec=0.05)
+            error = self.normalize_angle((target_heading - current_heading))
+
         self.send_speed(0.0, 0.0)
         self.get_logger().info("ending rotation")
 
@@ -86,15 +97,11 @@ class Lab2 (Node):
         init_y = self.py
 
         self.get_logger().info("go_to: variables set")
-
-        #use some trig to get the new theta part of the pose. i think i put stuff in the wrong coordinate frame before lol
         new_ang = math.atan2((new_y - init_y),(new_x - init_x))
         angle_to_turn = new_ang - self.pth
         self.rotate(self.pth + angle_to_turn, 0.5)
 
         time.sleep(0.05)
-        #another use of pythagorean theorem to calc distance (i think its called something Euclidian???)
-        # basically a control c, control v from drive() method && change a var name or two
         dist =  math.sqrt((new_x - init_x)** 2 + (new_y - init_y)** 2)
         self.drive(dist, 0.1)
 
@@ -110,11 +117,6 @@ class Lab2 (Node):
 
     def smooth_drive(self, distance: float, linear_speed: float):
         pass
-
-
-    def euclidean_dist(self, x1: float, y1: float, x2: float, y2: float):
-        output = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
-        return output
 
     def run(self):
         rclpy.spin(self)
