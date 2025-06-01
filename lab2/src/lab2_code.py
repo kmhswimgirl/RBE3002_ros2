@@ -112,7 +112,7 @@ class Lab2 (Node):
         self.px = msg.pose.pose.position.x
         self.py = msg.pose.pose.position.y
         quat_orig = msg.pose.pose.orientation
-        (r, p, y) = tf_transformations.euler_from_quaternion([quat_orig.x, quat_orig.y, quat_orig.z, quat_orig.w])
+        (r, p, y) = euler_from_quaternion([quat_orig.x, quat_orig.y, quat_orig.z, quat_orig.w])
         self.pth = y
 
     def smooth_drive(self, distance: float, linear_speed: float):
