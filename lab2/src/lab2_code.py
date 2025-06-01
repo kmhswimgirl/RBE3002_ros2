@@ -4,11 +4,10 @@
 import rclpy
 import math
 import time
-import tf_transformations
 
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import Twist, PoseStamped, TwistStamped
+from geometry_msgs.msg import Twist, PoseStamped
 from tf_transformations import euler_from_quaternion
 
 class Lab2 (Node):
@@ -29,9 +28,7 @@ class Lab2 (Node):
         # publishers
         self.cmd_vel = self.create_publisher(Twist, '/cmd_vel', 10)
 
-        self.get_logger().info("lab2 Initalized!")
-
-        self.drive(5.0, 0.1)
+        self.get_logger().info("lab2 node initalized!")
 
 
     def send_speed(self, linear_speed: float, angular_speed: float):
@@ -73,11 +70,10 @@ class Lab2 (Node):
         target_heading = self.normalize_angle((self.pth + target_heading))
     
         while abs(error) > tolerance:
+            rclpy.spin_once(self, timeout_sec=0.05)
             current_heading = self.pth
             self.get_logger().info(f"Current heading: {self.pth}")
-            
             self.send_speed(0.0, ang_speed)
-            rclpy.spin_once(self, timeout_sec=0.05)
             error = self.normalize_angle((target_heading - current_heading))
 
         self.send_speed(0.0, 0.0)
@@ -86,9 +82,6 @@ class Lab2 (Node):
     def go_to(self, msg: PoseStamped):
         
         self.get_logger().info("begin go_to")
-
-        #current robor position
-        init_th = self.pth
         
         #desired position
         new_y = msg.pose.position.y
@@ -109,14 +102,12 @@ class Lab2 (Node):
 
 
     def update_odometry(self, msg: Odometry):
+        self.get_logger().info("Odometry callback triggered")
         self.px = msg.pose.pose.position.x
         self.py = msg.pose.pose.position.y
         quat_orig = msg.pose.pose.orientation
         (r, p, y) = euler_from_quaternion([quat_orig.x, quat_orig.y, quat_orig.z, quat_orig.w])
         self.pth = y
-
-    def smooth_drive(self, distance: float, linear_speed: float):
-        pass
 
     def run(self):
         rclpy.spin(self)
