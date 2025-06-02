@@ -16,6 +16,7 @@ class Lab2(Node):
 
     def __init__(self):
         super().__init__('lab2')
+        # have to init variables to avoid attribute error
 
         # constructor
         self.px = None
@@ -28,10 +29,6 @@ class Lab2(Node):
         self.goal_y = None
         self.goal_theta = None
         self.state = self.ROBOT_IDLE # initial state
-
-        # placeholder target values
-        self.rotate_target = 0.0
-        self.drive_target = 0.0
 
         # subscribers and publishers. i think this syntax is correct. ros2 can be weird compared to Noetic lol
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.update_odometry, 10)
