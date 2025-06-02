@@ -8,18 +8,22 @@ import time
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist, PoseStamped
-from tf_transformations import euler_from_quaternion
+#from tf_transformations import euler_from_quaternion
+from scipy.spatial.transform import Rotation as R
 
 class Lab2 (Node):
 
-    def __init__(self, px, py, pth):
-        # Constructor
-        self.px = px
-        self.py = py
-        self.pth = pth
-
-        # init node 'lab2'
+    def __init__(self, px:float, py:float, pth:float):
         super().__init__('lab2')
+
+        # self.px = px
+        # self.py = py
+        # self.pth = pth
+
+        self.px = 0
+        self.py = 0
+        self.pth = 0
+        
 
         # Subscribers
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.update_odometry, 10)
@@ -32,8 +36,6 @@ class Lab2 (Node):
 
 
     def send_speed(self, linear_speed: float, angular_speed: float):
-        self.get_logger().info("starting send_speed")
-
         msg_cmd_vel = Twist()
 
         msg_cmd_vel.linear.x = linear_speed
@@ -44,8 +46,9 @@ class Lab2 (Node):
         msg_cmd_vel.angular.y = 0.0
         msg_cmd_vel.angular.z = angular_speed
 
+        self.get_logger().info(f"send_speed called with linear: {linear_speed} ({type(linear_speed)}), angular: {angular_speed} ({type(angular_speed)})")
+
         self.cmd_vel.publish(msg_cmd_vel)
-        self.get_logger().info("ending send_speed")
 
     def drive(self, distance: float, linear_speed: float):
         self.get_logger().info("starting drive")
@@ -64,18 +67,23 @@ class Lab2 (Node):
         self.send_speed(0.0, 0.0) # stop robot when loop is complete (i.e. distance is below tolerance)
         self.get_logger().info("ending drive")
 
-    def rotate(self, target_heading: float, ang_speed: float):
-        error = 1000
-        tolerance = 0.2
-        target_heading = self.normalize_angle((self.pth + target_heading))
-    
-        while abs(error) > tolerance:
-            rclpy.spin_once(self, timeout_sec=0.05)
-            current_heading = self.pth
-            self.get_logger().info(f"Current heading: {self.pth}")
-            self.send_speed(0.0, ang_speed)
-            error = self.normalize_angle((target_heading - current_heading))
+    def normalize_angle(self, angle):
+        while angle > math.pi:
+            angle -= 2 * math.pi
+        while angle < -math.pi:
+            angle += 2 * math.pi
+        return angle
 
+    def rotate(self, angle: float, ang_speed: float):
+        tolerance = 0.05
+        goalAngle = self.normalize_angle(self.pth + angle)
+        error = self.normalize_angle(goalAngle - self.pth)
+        while abs(error) > tolerance:
+            self.get_logger().info(f"Current heading: {self.pth:.3f}, Target: {goalAngle:.3f}, Error: {error:.3f}")
+            direction = ang_speed if error > 0 else -ang_speed
+            self.send_speed(0.0, direction)
+            error = self.normalize_angle(goalAngle - self.pth)
+            rclpy.spin_once(self, timeout_sec=0.05)
         self.send_speed(0.0, 0.0)
         self.get_logger().info("ending rotation")
 
@@ -92,27 +100,27 @@ class Lab2 (Node):
         self.get_logger().info("go_to: variables set")
         new_ang = math.atan2((new_y - init_y),(new_x - init_x))
         angle_to_turn = new_ang - self.pth
-        self.rotate(self.pth + angle_to_turn, 0.5)
+        self.rotate(angle_to_turn, 0.5)
 
-        time.sleep(0.05)
+      
         dist =  math.sqrt((new_x - init_x)** 2 + (new_y - init_y)** 2)
         self.drive(dist, 0.1)
 
         self.get_logger().info("finished go_to")
 
-
     def update_odometry(self, msg: Odometry):
-        self.get_logger().info("Odometry callback triggered")
         self.px = msg.pose.pose.position.x
         self.py = msg.pose.pose.position.y
-        quat_orig = msg.pose.pose.orientation
-        (r, p, y) = euler_from_quaternion([quat_orig.x, quat_orig.y, quat_orig.z, quat_orig.w])
-        self.pth = y
+        quat = msg.pose.pose.orientation
+        r = R.from_quat([quat.x, quat.y, quat.z, quat.w])
+        euler = r.as_euler('xyz')
+        self.pth = euler[2]
 
     def run(self):
-        rclpy.spin(self)
+        while rclpy.ok():
+            rclpy.spin_once(self, timeout_sec=0.1)
 
 if __name__ == '__main__':
     rclpy.init()
-    robot = Lab2(0,0,0)
+    robot = Lab2(0.0,0.0,0.0)
     robot.run()

@@ -24,6 +24,11 @@ install(
   DESTINATION lib/lab2
 )
 
+install(PROGRAMS
+  src/lab2_timer.py
+  DESTINATION lib/lab2
+)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
