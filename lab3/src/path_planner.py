@@ -8,7 +8,7 @@ from nav_msgs.srv import GetPlan, GetMap, GetPlanResponse
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 from geometry_msgs.msg import Point, Pose, PoseStamped
 from typing import List, Tuple
-from priority_queue import PriorityQueue
+from queue import PriorityQueue
 
 class PathPlanner(Node):
 
@@ -310,14 +310,14 @@ class PathPlanner(Node):
                 visited.append(current) # Add cell to the visited list
                 visitedCells.cells.append(PathPlanner.grid_to_world(mapdata, current)) # Add world coordinate version of cell to be shown in Rviz
 
-            # If the goal was not actually reached, return empty path
+            # path == empty if no goal is found
             if goal not in came_from:
                 return []
 
             path = []
             current = goal
 
-            # Make the path based off the current point and where it came from (create list of points backwards)
+            #make path based on the previous node (reversed path order)
             while current is not None:
                 path.append(current)
                 current = came_from.get(current)
@@ -325,9 +325,9 @@ class PathPlanner(Node):
                     path.append(start)
                     break 
 
-            path.reverse() # Cells were put in backwards so reverse list
+            path.reverse() # reverse the list
 
-            # Publish the expanded cells to be visualized in Rviz
+            # topic for displaying cells (expanded)
             self.expandedCells.publish(visitedCells)
 
             return path 
@@ -384,5 +384,3 @@ class PathPlanner(Node):
         """
         rospy.loginfo("Optimizing path")
         pass
-
-
