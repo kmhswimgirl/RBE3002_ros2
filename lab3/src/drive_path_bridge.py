@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
-import rospy # type: ignore
+import rclpy
 from nav_msgs.srv import GetPlan, GetPlanRequest
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
-from driving import Driving
+#from driving import Driving
 
 # Subscribe to 2D nav goal (goal) and 2D pose estimate (start)
 # Listens to these topics from Rviz, and once gotten, set the start and end to be the start and end fields in a GetPlan message
@@ -22,9 +22,9 @@ class Client:
         rospy.init_node("path_planner_client")
 
         # Subscribe to 2D pose estimate (start) and 2D nav goal (goal) from Rviz and call the appropiate functions
-        rospy.Subscriber('/initialpose', PoseWithCovarianceStamped, self.initial_pose)
-        rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.handle_path_request)
-        self.driving = rospy.Publisher('/driving', PoseStamped, queue_size=1000)
+        self.create_subscriber('/initialpose', PoseWithCovarianceStamped, self.initial_pose)
+        self.create_subscriber('/move_base_simple/goal', PoseStamped, self.handle_path_request)
+        self.driving = rclpy.Publisher('/driving', PoseStamped, queue_size=1000)
 
 
     def initial_pose(self, msg: PoseWithCovarianceStamped):

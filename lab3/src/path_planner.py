@@ -4,6 +4,8 @@
 
 import math
 import rclpy
+
+from rclpy.node import Node
 from nav_msgs.srv import GetPlan, GetMap, GetPlanResponse
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 from geometry_msgs.msg import Point, Pose, PoseStamped
@@ -11,9 +13,9 @@ from typing import List, Tuple
 from queue import PriorityQueue
 
 class PathPlanner(Node):
-
-    super().__init__('path_planner') # intialize node
-
+    def __init__(self):
+        super().__init__('path_planner') # initialize node
+        
 
 
     # --------------------- easy stuff, should not need any ros2 translating
