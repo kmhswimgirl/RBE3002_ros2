@@ -12,9 +12,21 @@ from geometry_msgs.msg import Point, Pose, PoseStamped
 from typing import List, Tuple
 from queue import PriorityQueue
 
+import rclpy.time
+
 class PathPlanner(Node):
     def __init__(self):
         super().__init__('path_planner') # initialize node
+        self.loginfo = self.get_logger().info
+
+        # add visuals to rviz
+        self.expanded_cells = self.create_publisher(GridCells, "/expanded_cells", 10) 
+        self.frontier_cells = self.create_publisher(GridCells, "/frontier", 10)
+        self.c_space = self.create_publisher(GridCells, "/path_planner/c_space", 10)
+
+        # service call for generating path
+
+
         
 
 
@@ -182,37 +194,39 @@ class PathPlanner(Node):
 
         for grid_cell in path:
             pose_message = PoseStamped()
-            pose_message.header.stamp = rospy.Time.now() # need to replace with rclpy equvalent
+            pose_message.header.stamp = Node.get_clock().now()
             pose_message.header.frame_id = "map"
             pose_message.pose.position = PathPlanner.grid_to_world(mapdata, grid_cell)
 
             world_path.append(pose_message)
 
-        return world_path
+        pass
     
     # ---------------------- potential full re-write due to ros2 syntax/logic
 
-    @staticmethod
-    def request_map() -> OccupancyGrid:
+    def request_map(self) -> OccupancyGrid:
         """
         Requests the map from the map server.
         :return [OccupancyGrid] The grid if the service call was successful,
                                 None in case of error.
         """
         ### REQUIRED CREDIT
-        rospy.loginfo("Requesting the map") 
+        rclpy.loginfo("Requesting the map") 
 
-        # Try to connect to service
-        rospy.wait_for_service('/static_map')
+        mapClient = self.create_client(GetMap, "/retrieve_mapdata")
+        while not mapClient.wait_for_service(1):
+            self.loginfo("mapdata not available")
+        
+        mapRequest = GetMap.Request()
+        mapAsyncCall = mapClient.call_async(mapRequest)
+        rclpy.spin_until_future_complete(self, mapAsyncCall)
 
-        # Try to get map from service and return error if the map could not be received
-        try:
-            getMapService = rospy.ServiceProxy('/static_map', GetMap)
-            getMap = getMapService()
-            rospy.loginfo("Got map")
-            return getMap.map
-        except:
-            rospy.loginfo("Could not get map")
+        mapdata = mapAsyncCall.result()
+
+        if mapdata is not None:
+            self.loginfo("map retrieved")
+            return mapdata.map
+        else:
             return None
         
     # ------------------ C SPACE & A STAR
@@ -231,7 +245,7 @@ class PathPlanner(Node):
         arrayRows = mapdata.info.height
         arrayCols = mapdata.info.width
 
-        rospy.loginfo("Calculating C-Space") # redo log statement 
+        rclpy.loginfo("Calculating C-Space")  
         x, y = 0, 0
 
         for cell in range(len(paddedGrid) - 1):
@@ -256,13 +270,13 @@ class PathPlanner(Node):
         paddedCells.cells = addedCells
         paddedCells.header.frame_id = "map"
         
-        self.cspace.publish(paddedCells)
+        self.c_space.publish(paddedCells)
 
         return OccupancyGrid(mapdata.header, mapdata.info, paddedGrid)
 
     def a_star(self, mapdata: OccupancyGrid, start: Tuple[int, int], goal: Tuple[int, int]) -> List[Tuple[int, int]]:
             ### REQUIRED CREDIT
-            rospy.loginfo("Executing A* from (%d,%d) to (%d,%d)" % (start[0], start[1], goal[0], goal[1]))
+            rclpy.loginfo("Executing A* from (%d,%d) to (%d,%d)" % (start[0], start[1], goal[0], goal[1]))
 
             frontier = PriorityQueue()
             frontier.put(start, 0) # Start comes from function input
@@ -330,7 +344,7 @@ class PathPlanner(Node):
             path.reverse() # reverse the list
 
             # topic for displaying cells (expanded)
-            self.expandedCells.publish(visitedCells)
+            self.expanded_cells.publish(visitedCells)
 
             return path 
 
@@ -343,11 +357,11 @@ class PathPlanner(Node):
             :return     [Path]        A Path message (the coordinates are expressed in the world)
             """
             ### REQUIRED CREDIT
-            rospy.loginfo("Returning a Path message")
+            rclpy.loginfo("Returning a Path message")
             world_path_message = Path() # Create a message of type Path()
 
             # Set fields of path message and use the path_to_poses function to get the poses the robot needs to be in to follow the path
-            world_path_message.header.stamp = rospy.Time.now()
+            world_path_message.header.stamp = self.get_clock().now().to_msg()
             world_path_message.header.frame_id = "map"
             world_path_message.poses = self.path_to_poses(mapdata, path)
 
@@ -356,7 +370,9 @@ class PathPlanner(Node):
             path_response.plan = world_path_message
 
             self.robotPath.publish(world_path_message) #Publish the message to be shown in Rviz
-            return path_response
+            #return path_response
+            pass
+
 
     def plan_path(self, msg):
             """
@@ -364,6 +380,7 @@ class PathPlanner(Node):
             Internally uses A* to plan the optimal path.
             :param req 
             """
+            
             mapdata = PathPlanner.request_map()
             if mapdata is None:
                 return Path()
@@ -374,7 +391,9 @@ class PathPlanner(Node):
             goal  = PathPlanner.world_to_grid(mapdata, msg.goal.pose.position)
             path  = self.a_star(cspacedata, start, goal)
 
-            return self.path_to_message(mapdata, path)
+            #return self.path_to_message(mapdata, path)
+            pass
+            
     
     # --------------- EX. CREDIT ----------------------
     @staticmethod
@@ -384,5 +403,20 @@ class PathPlanner(Node):
         :param path [[(x,y)]] The path as a list of tuples (grid coordinates)
         :return     [[(x,y)]] The optimized path as a list of tuples (grid coordinates)
         """
-        rospy.loginfo("Optimizing path")
+        rclpy.loginfo("Optimizing path")
         pass
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = PathPlanner()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
