@@ -394,7 +394,7 @@ class PathPlanner(Node):
             #return self.path_to_message(mapdata, path)
             pass
             
-    
+
     # --------------- EX. CREDIT ----------------------
     @staticmethod
     def optimize_path(path: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
