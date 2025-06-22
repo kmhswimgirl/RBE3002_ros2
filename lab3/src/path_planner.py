@@ -5,12 +5,14 @@
 import math
 import rclpy
 
+import rclpy.logging
 from rclpy.node import Node
-from nav_msgs.srv import GetPlan, GetMap, GetPlanResponse
+from nav_msgs.srv import GetPlan, GetMap, GetMap_Response, GetPlan_Response
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 from geometry_msgs.msg import Point, Pose, PoseStamped
 from typing import List, Tuple
 from queue import PriorityQueue
+from rclpy.qos import QoSProfile, DurabilityPolicy
 
 import rclpy.time
 
@@ -19,17 +21,23 @@ class PathPlanner(Node):
         super().__init__('path_planner') # initialize node
         self.loginfo = self.get_logger().info
 
+        # QoS config for c-space ?
+        c_space_qos = QoSProfile(depth=10)
+        c_space_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
+
         # add visuals to rviz
         self.expanded_cells = self.create_publisher(GridCells, "/expanded_cells", 10) 
         self.frontier_cells = self.create_publisher(GridCells, "/frontier", 10)
-        self.c_space = self.create_publisher(GridCells, "/path_planner/c_space", 10)
+        self.c_space = self.create_publisher(GridCells, "/path_planner/c_space", c_space_qos)
 
         # service call for generating path
 
+        # c space test -- remove later
+        mapdata = self.request_map()
+        if mapdata is not None:
+            self.calc_cspace(mapdata, 1)
 
-        
-
-
+    
     # --------------------- easy stuff, should not need any ros2 translating
     @staticmethod
     def grid_to_index(mapdata: OccupancyGrid, p: Tuple[int, int]) -> int:
@@ -78,7 +86,13 @@ class PathPlanner(Node):
         realWorldX = p[0]*resolution + realOriginX + resolution/2
         realWorldY = p[1]*resolution + realOriginY + resolution/2
 
-        return Point(realWorldX, realWorldY, 0)
+        # since ros2 is annoying, have to set each point individually 
+        pt = Point()
+        pt.x = realWorldX
+        pt.y = realWorldY
+        pt.z =  0.0
+
+        return pt
     
     @staticmethod
     def world_to_grid(mapdata: OccupancyGrid, wp: Point) -> Tuple[int, int]:
@@ -112,12 +126,11 @@ class PathPlanner(Node):
         arrayCols = mapdata.info.width
         coord = (p[0],p[1])
 
-        index = PathPlanner.grid_to_index(mapdata, coord)
-        occVal = mapdata.data[index]
-
-        freeThreshold = 0.196
-        
-        if ((p[0] >= 0 and p[0] <= arrayCols) and (p[1] >= 0 and p[1] <= arrayRows)):
+        # FIXED BOUNDS CHECK
+        if ((p[0] >= 0 and p[0] < arrayCols) and (p[1] >= 0 and p[1] < arrayRows)):
+            index = PathPlanner.grid_to_index(mapdata, coord)
+            occVal = mapdata.data[index]
+            freeThreshold = 0.196
             if (occVal < freeThreshold and occVal !=-1): 
                 return True
             else:
@@ -211,9 +224,9 @@ class PathPlanner(Node):
                                 None in case of error.
         """
         ### REQUIRED CREDIT
-        rclpy.loginfo("Requesting the map") 
+        self.loginfo("requesting map")
 
-        mapClient = self.create_client(GetMap, "/retrieve_mapdata")
+        mapClient = self.create_client(GetMap, "/map_server/map") # ros2 service list to check for topic. totally got that wrong last time lol
         while not mapClient.wait_for_service(1):
             self.loginfo("mapdata not available")
         
@@ -245,7 +258,7 @@ class PathPlanner(Node):
         arrayRows = mapdata.info.height
         arrayCols = mapdata.info.width
 
-        rclpy.loginfo("Calculating C-Space")  
+        self.loginfo("Calculating C-Space")  
         x, y = 0, 0
 
         for cell in range(len(paddedGrid) - 1):
@@ -272,81 +285,15 @@ class PathPlanner(Node):
         
         self.c_space.publish(paddedCells)
 
-        return OccupancyGrid(mapdata.header, mapdata.info, paddedGrid)
+        self.loginfo(f"Publishing {len(addedCells)} C-space cells")
 
-    def a_star(self, mapdata: OccupancyGrid, start: Tuple[int, int], goal: Tuple[int, int]) -> List[Tuple[int, int]]:
-            ### REQUIRED CREDIT
-            rclpy.loginfo("Executing A* from (%d,%d) to (%d,%d)" % (start[0], start[1], goal[0], goal[1]))
+        # more ros2 type annoyances
+        c_map = OccupancyGrid()
+        c_map.header = mapdata.header
+        c_map.info = mapdata.info
+        c_map.data = paddedGrid
 
-            frontier = PriorityQueue()
-            frontier.put(start, 0) # Start comes from function input
-            came_from = {}
-            cost_so_far = {}
-            came_from[start] = None
-            cost_so_far[start] = 0
-            visited = []
-            path = [] # Store the optimal path to get from start to goal
-
-            visitedCells = GridCells()
-            visitedCells.header = mapdata.header
-            visitedCells.header.frame_id = "map"
-            visitedCells.cell_width = mapdata.info.resolution
-            visitedCells.cell_height = mapdata.info.resolution
-
-            pathCells = GridCells()
-            pathCells.header = mapdata.header
-            pathCells.header.frame_id = "map"
-            pathCells.cell_width = mapdata.info.resolution
-            pathCells.cell_height = mapdata.info.resolution
-
-            frontierCells = GridCells()
-            pathCells.header = mapdata.header
-            pathCells.header.frame_id = "map"
-            pathCells.cell_width = mapdata.info.resolution
-            pathCells.cell_height = mapdata.info.resolution
-
-            # Run while there are still points in the frontier
-            while not frontier.empty():
-                current = frontier.get()
-
-                if current == goal:
-                    break
-
-                # Get all of the neighbors of 8 and check if they should be added
-                for next in PathPlanner.neighbors_of_8(mapdata, current):
-                    new_cost = cost_so_far[current] + (abs(current[0] - next[0]) + abs(current[1] - next[1])) # Calculate the Manhattan distance to get from current point to next point and add it to cost
-                    if next not in cost_so_far or new_cost < cost_so_far[next]:
-                        cost_so_far[next] = new_cost
-                        priority = new_cost + PathPlanner.euclidean_distance(next, goal) # Use Euclidean distance function from the current point to the new point for the heuristic
-                        frontier.put(next, priority) # Put the next point in the frontier
-                        came_from[next] = current
-                        frontierCells.cells.append(PathPlanner.grid_to_world(mapdata, next))
-                
-                # Also store which cell each one came from
-                visited.append(current) # Add cell to the visited list
-                visitedCells.cells.append(PathPlanner.grid_to_world(mapdata, current)) # Add world coordinate version of cell to be shown in Rviz
-
-            # path == empty if no goal is found
-            if goal not in came_from:
-                return []
-
-            path = []
-            current = goal
-
-            #make path based on the previous node (reversed path order)
-            while current is not None:
-                path.append(current)
-                current = came_from.get(current)
-                if current == start:
-                    path.append(start)
-                    break 
-
-            path.reverse() # reverse the list
-
-            # topic for displaying cells (expanded)
-            self.expanded_cells.publish(visitedCells)
-
-            return path 
+        return c_map
 
     # ---------- PATH STUFF
 
@@ -357,7 +304,7 @@ class PathPlanner(Node):
             :return     [Path]        A Path message (the coordinates are expressed in the world)
             """
             ### REQUIRED CREDIT
-            rclpy.loginfo("Returning a Path message")
+            self.loginfo("Returning a Path message")
             world_path_message = Path() # Create a message of type Path()
 
             # Set fields of path message and use the path_to_poses function to get the poses the robot needs to be in to follow the path
@@ -366,10 +313,10 @@ class PathPlanner(Node):
             world_path_message.poses = self.path_to_poses(mapdata, path)
 
             # Create a plan response that will get sent back to the client
-            path_response = GetPlanResponse()
+            path_response = GetPlan_Response()
             path_response.plan = world_path_message
 
-            self.robotPath.publish(world_path_message) #Publish the message to be shown in Rviz
+            #self.robotPath.publish(world_path_message) #Publish the message to be shown in Rviz
             #return path_response
             pass
 
@@ -403,7 +350,7 @@ class PathPlanner(Node):
         :param path [[(x,y)]] The path as a list of tuples (grid coordinates)
         :return     [[(x,y)]] The optimized path as a list of tuples (grid coordinates)
         """
-        rclpy.loginfo("Optimizing path")
+        #self.loginfo("Optimizing path")
         pass
 
 def main(args=None):

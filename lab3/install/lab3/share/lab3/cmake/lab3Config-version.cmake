@@ -1,0 +1,1 @@
+/home/kymadogg/ros2_ws/src/RBE3002_ros2/lab3/build/lab3/ament_cmake_core/lab3Config-version.cmake
