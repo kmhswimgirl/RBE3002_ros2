@@ -5,7 +5,7 @@ import rclpy
 import math
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import Twist, PoseStamped
+from geometry_msgs.msg import Twist, PoseStamped, PoseWithCovarianceStamped
 from scipy.spatial.transform import Rotation as R
 from nav_msgs.srv import GetPlan, GetMap, GetPlanResponse
 
@@ -38,6 +38,7 @@ class Driver(Node):
         # subscribers and publishers. i think this syntax is correct. ros2 can be weird compared to Noetic lol
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.update_odometry, 10)
         self.sub_goal = self.create_subscription(PoseStamped, '/move_base_simple/goal', self.go_to, 10)
+
         self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
         self.timer = self.create_timer(0.05, self.state_machine) # self.state_machine is called every 0.05 seconds
 
@@ -61,6 +62,9 @@ class Driver(Node):
         path_req.goal = goal
         path_req.tolerance = tol
 
+        self.path_client.wait_for_service()
+
+        
         while not self.path_client.wait_for_service(timeout_sec=1.0):
             self.get_logger().info("waiting for path_planner to generate path!")
 

@@ -7,10 +7,10 @@ import rclpy
 
 from rclpy.node import Node
 from nav_msgs.srv import GetPlan, GetMap, GetPlan_Response
-from nav_msgs.msg import GridCells, OccupancyGrid, Path
-from geometry_msgs.msg import Point, Pose, PoseStamped
+from nav_msgs.msg import GridCells, OccupancyGrid, Path, Odometry
+from geometry_msgs.msg import Point, PoseWithCovarianceStamped, PoseStamped
 from typing import List, Tuple
-from queue import PriorityQueue
+from PriorityQueue import PriorityQueue
 from rclpy.qos import QoSProfile, DurabilityPolicy
 
 class PathPlanner(Node):
@@ -28,32 +28,30 @@ class PathPlanner(Node):
         self.c_space = self.create_publisher(GridCells, "/path_planner/c_space", qos)
         self.robot_path = self.create_publisher(Path,'/robot_path', qos)
 
-        # test subscriber for checking a* accuracy
-        self.rviz_goal_sub = self.create_subscription(PoseStamped, '/move_base_simple/goal', self.rviz_2d_nav_goal, 10)
-
         # service call for generating path
         self.path_to_drive = self.create_service(GetPlan, '/path_planner/plan_path', self.plan_path)
+        self.map_client = self.create_client(GetMap, "/map_server/map") # ros2 service list to check for topic. totally got that wrong last time lol
 
-        # c space test -- remove later
-        mapdata = self.request_map()
-        if mapdata is not None:
-            self.calc_cspace(mapdata, 1)
+ # test subscriber for checking a* accuracy...
+        self.rviz_goal_sub = self.create_subscription(PoseStamped, '/move_base_simple/goal', self.goal_pose, 10)
+        #self.odom_sub = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
+        self.start_position = self.create_subscription(PoseWithCovarianceStamped, '/initialpose',self.initial_pose,10)
 
-    def rviz_2d_nav_goal(self, msg:PoseStamped):
-        self.loginfo(f"Received goal: ({msg.pose.position.x:.2f}, {msg.pose.position.y:.2f})")
-        mapdata = self.request_map()
-        if mapdata is None: # error handling for the map request failing
-            self.loginfo("map not found")
-            return
-        
-        c_space_info = self.calc_cspace(mapdata, 1)
-        st = self.world_to_grid(mapdata, msg.pose.position.)
-        go = self.world_to_grid(mapdata, msg.pose.position)
-        pth = self.a_star(c_space_info, st, go)
-        self.path_to_message(mapdata,pth)
+        # # c space test -- remove later
+        # mapdata = self.request_map()
+        # if mapdata is not None:
+        #     self.calc_cspace(mapdata, 1)
 
-        
+    def initial_pose(self, msg: PoseWithCovarianceStamped):
+        self.initialPose = PoseStamped()
+        self.initialPose.header = msg.header
+        self.initialPose.pose = msg.pose.pose
+        self.loginfo("Received initial pose.")
 
+    def goal_pose(self, msg:PoseStamped):
+        self.goalPose = msg
+        self.loginfo("Received goal pose.")
+        self.plan_path()
 
     # --------------------- easy stuff, should not need any ros2 translating
     @staticmethod
@@ -103,7 +101,7 @@ class PathPlanner(Node):
         realWorldX = p[0]*resolution + realOriginX + resolution/2
         realWorldY = p[1]*resolution + realOriginY + resolution/2
 
-        # since ros2 is annoying, have to set each point individually 
+        # since ros2 is annoying, have to set each parameter individually 
         pt = Point()
         pt.x = realWorldX
         pt.y = realWorldY
@@ -233,32 +231,37 @@ class PathPlanner(Node):
         return world_path
 
     
-    # ---------------------- potential full re-write due to ros2 syntax/logic
+    # ---------------------- potential full re-write due to ros2 syntax/logic I HATE THE MAP_SERVER!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-    def request_map(self) -> OccupancyGrid: # this was a bitch to figure out
+    @staticmethod
+    def request_map(node, map_client) -> OccupancyGrid:
         """
         Requests the map from the map server.
+        :param node: The rclpy Node (for spinning and logging)
+        :param map_client: The client for the GetMap service
         :return [OccupancyGrid] The grid if the service call was successful,
                                 None in case of error.
         """
-        ### REQUIRED CREDIT
-        self.loginfo("requesting map")
-
-        map_client = self.create_client(GetMap, "/map_server/map") # ros2 service list to check for topic. totally got that wrong last time lol
-        while not map_client.wait_for_service(1):
-            self.loginfo("mapdata not available")
-        
+        node.get_logger().info("Requesting the map")
         map_request = GetMap.Request()
-        map_async_call = map_client.call_async(map_request)
-        rclpy.spin_until_future_complete(self, map_async_call) # wait for the map server service call to arrive
-
-        mapdata = map_async_call.result()
-
-        if mapdata is not None:
-            self.loginfo("map retrieved")
-            return mapdata.map
-        else:
-            return None
+        future = map_client.call_async(map_request)
+        import rclpy
+        while rclpy.ok():
+            rclpy.spin_once(node, timeout_sec=0.1)
+            if future.done():
+                result = future.result()
+                if result is not None:
+                    node.get_logger().info("Got map")
+                    return result.map
+                else:
+                    node.get_logger().info("Could not get map")
+                    return None
+        
+    def async_request_map(self, callback):
+        self.loginfo("Requesting the map")
+        map_request = GetMap.Request()
+        future = self.map_client.call_async(map_request)
+        future.add_done_callback(lambda fut: callback(fut.result().map if fut.result() else None))
         
     # ------------------ C SPACE & A STAR
 
@@ -313,13 +316,12 @@ class PathPlanner(Node):
 
         return c_map
     
-    
     def a_star(self, mapdata: OccupancyGrid, start: Tuple[int, int], goal: Tuple[int, int]) -> List[Tuple[int, int]]:
         ### REQUIRED CREDIT
         self.loginfo("Executing A* from (%d,%d) to (%d,%d)" % (start[0], start[1], goal[0], goal[1]))
 
         frontier = PriorityQueue()
-        frontier.put((0, start)) # Start comes from function input
+        frontier.put(start, 0)  # Use (element, priority) for your custom PriorityQueue
         came_from = {}
         cost_so_far = {}
         came_from[start] = None
@@ -347,18 +349,16 @@ class PathPlanner(Node):
 
         # Run while there are still points in the frontier
         while not frontier.empty():
-            _, current = frontier.get()
-
+            current = frontier.get()
             if current == goal:
                 break
-
             # Get all of the neighbors of 8 and check if they should be added
             for next in PathPlanner.neighbors_of_8(mapdata, current):
                 new_cost = cost_so_far[current] + (abs(current[0] - next[0]) + abs(current[1] - next[1])) # Calculate the Manhattan distance to get from current point to next point and add it to cost
                 if next not in cost_so_far or new_cost < cost_so_far[next]:
                     cost_so_far[next] = new_cost
                     priority = new_cost + PathPlanner.euclidean_distance(next, goal) # Use Euclidean distance function from the current point to the new point for the heuristic
-                    frontier.put((priority, next)) # Put the next point in the frontier
+                    frontier.put(next, priority) # Put the next point in the frontier
                     came_from[next] = current
                     frontierCells.cells.append(PathPlanner.grid_to_world(mapdata, next))
             
@@ -388,53 +388,40 @@ class PathPlanner(Node):
 
         return path # Return the robot's path, in grid coordinates
 
+    # ---------- Plan the Path
 
-    # ---------- PATH STUFF
+    def plan_path(self):
 
-    def path_to_message(self, mapdata: OccupancyGrid, path: List[Tuple[int, int]]) -> Path:
-            """
-            Takes a path on the grid and returns a Path message.
-            :param path [[(int,int)]] The path on the grid (a list of tuples)
-            :return     [Path]        A Path message (the coordinates are expressed in the world)
-            """
-            ### REQUIRED CREDIT
-            self.loginfo("Returning a Path message")
+        if self.initialPose is None or self.goalPose is None:
+            self.loginfo("Waiting for both start and goal poses.")
+            return
 
-            # creating the world_path_message from the previous path 
-            world_path_message = Path() # Create a message of type Path()    
+        def on_map(mapdata):
+            if mapdata is None:
+                self.loginfo("no map")
+                return Path()
+
+            # calculate and diplay c space
+            cspacedata = self.calc_cspace(mapdata, 1)
+
+            # define start and goal Pose stamps
+            start = PathPlanner.world_to_grid(mapdata, self.initialPose.pose.position)
+            goal  = PathPlanner.world_to_grid(mapdata, self.goalPose.pose.position)
+            
+
+            path  = self.a_star(cspacedata, start, goal)
+
+            world_path_message = Path()
             world_path_message.header.stamp = self.get_clock().now().to_msg()
             world_path_message.header.frame_id = "map"
             world_path_message.poses = self.path_to_poses(mapdata, path)
-            self.robot_path.publish(world_path_message) #Publish the message to be shown in Rviz
 
-            # service call response to go to the driver node
-            path_response = GetPlan_Response()
-            path_response.plan = world_path_message
-
+            self.robot_path.publish(world_path_message)
             self.loginfo(f"Publishing path: {len(world_path_message.poses)} poses")
-            return path_response
-            
 
-    def plan_path(self, request, response):
-            """
-            Plans a path between the start and goal locations in the requested.
-            Internally uses A* to plan the optimal path.
-            :param req 
-            """
-            
-            mapdata = self.request_map()
-            if mapdata is None:
-                return Path()
-            
-            cspacedata = self.calc_cspace(mapdata, 1)
+        self.async_request_map(on_map)
+    
 
-            start = PathPlanner.world_to_grid(mapdata, request.start.pose.position)
-            goal  = PathPlanner.world_to_grid(mapdata, request.goal.pose.position)
-            path  = self.a_star(cspacedata, start, goal)
-
-            return self.path_to_message(mapdata, path)
-            
-            
     # --------------- EX. CREDIT ----------------------
     @staticmethod
     def optimize_path(path: List[Tuple[int, int]]) -> List[Tuple[int, int]]:

@@ -19,6 +19,7 @@ install(DIRECTORY
 
 install(PROGRAMS
   src/path_planner.py
+  src/driver.py
   DESTINATION lib/lab3
 )
 
