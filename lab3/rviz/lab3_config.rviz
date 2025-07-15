@@ -5,16 +5,15 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
-        - /Status1
-        - /LaserScan1
         - /LaserScan1/Topic1
         - /TF1/Frames1
-        - /Odometry1
-        - /Map1
         - /GridCells1
         - /GridCells1/Topic1
-        - /Path1
-        - /Path1/Topic1
+        - /Path1/Status1
+        - /GridCells2
+        - /GridCells2/Status1
+        - /GridCells2/Topic1
+        - /GridCells3/Topic1
       Splitter Ratio: 0.5
     Tree Height: 698
   - Class: rviz_common/Selection
@@ -63,7 +62,7 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: Intensity
       Decay Time: 0
-      Enabled: true
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Max Intensity: -999999
@@ -84,7 +83,7 @@ Visualization Manager:
         Value: /scan
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
     - Alpha: 1
       Class: rviz_default_plugins/RobotModel
       Collision Enabled: false
@@ -263,6 +262,32 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /robot_path
       Value: true
+    - Alpha: 1
+      Class: rviz_default_plugins/GridCells
+      Color: 255; 120; 0
+      Enabled: true
+      Name: GridCells
+      Topic:
+        Depth: 5
+        Durability Policy: Transient Local
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /expanded_cells
+      Value: true
+    - Alpha: 1
+      Class: rviz_default_plugins/GridCells
+      Color: 165; 29; 45
+      Enabled: true
+      Name: GridCells
+      Topic:
+        Depth: 5
+        Durability Policy: Transient Local
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /frontier
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -307,7 +332,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 9.024628639221191
+      Distance: 14.41150188446045
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -341,5 +366,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 2047
-  X: 195
-  Y: 111
+  X: 249
+  Y: 224

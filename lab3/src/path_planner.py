@@ -6,7 +6,7 @@ import math
 import rclpy
 
 from rclpy.node import Node
-from nav_msgs.srv import GetPlan, GetMap, GetPlan_Response
+from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path, Odometry
 from geometry_msgs.msg import Point, PoseWithCovarianceStamped, PoseStamped
 from typing import List, Tuple
@@ -233,29 +233,29 @@ class PathPlanner(Node):
     
     # ---------------------- potential full re-write due to ros2 syntax/logic I HATE THE MAP_SERVER!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-    @staticmethod
-    def request_map(node, map_client) -> OccupancyGrid:
-        """
-        Requests the map from the map server.
-        :param node: The rclpy Node (for spinning and logging)
-        :param map_client: The client for the GetMap service
-        :return [OccupancyGrid] The grid if the service call was successful,
-                                None in case of error.
-        """
-        node.get_logger().info("Requesting the map")
-        map_request = GetMap.Request()
-        future = map_client.call_async(map_request)
-        import rclpy
-        while rclpy.ok():
-            rclpy.spin_once(node, timeout_sec=0.1)
-            if future.done():
-                result = future.result()
-                if result is not None:
-                    node.get_logger().info("Got map")
-                    return result.map
-                else:
-                    node.get_logger().info("Could not get map")
-                    return None
+    # @staticmethod
+    # def request_map(node, map_client) -> OccupancyGrid:
+    #     """
+    #     Requests the map from the map server.
+    #     :param node: The rclpy Node (for spinning and logging)
+    #     :param map_client: The client for the GetMap service
+    #     :return [OccupancyGrid] The grid if the service call was successful,
+    #                             None in case of error.
+    #     """
+    #     node.get_logger().info("Requesting the map")
+    #     map_request = GetMap.Request()
+    #     future = map_client.call_async(map_request)
+    #     import rclpy
+    #     while rclpy.ok():
+    #         rclpy.spin_once(node, timeout_sec=0.1)
+    #         if future.done():
+    #             result = future.result()
+    #             if result is not None:
+    #                 node.get_logger().info("Got map")
+    #                 return result.map
+    #             else:
+    #                 node.get_logger().info("Could not get map")
+    #                 return None
         
     def async_request_map(self, callback):
         self.loginfo("Requesting the map")
@@ -408,20 +408,24 @@ class PathPlanner(Node):
             start = PathPlanner.world_to_grid(mapdata, self.initialPose.pose.position)
             goal  = PathPlanner.world_to_grid(mapdata, self.goalPose.pose.position)
             
-
+            # a star path planning
             path  = self.a_star(cspacedata, start, goal)
+            self.loginfo(path)
+
+            # optimized path
+            optimized_path = PathPlanner.optimize_path(path)
+            self.loginfo(optimized_path)
 
             world_path_message = Path()
             world_path_message.header.stamp = self.get_clock().now().to_msg()
             world_path_message.header.frame_id = "map"
-            world_path_message.poses = self.path_to_poses(mapdata, path)
+            world_path_message.poses = self.path_to_poses(mapdata, optimized_path)
 
             self.robot_path.publish(world_path_message)
             self.loginfo(f"Publishing path: {len(world_path_message.poses)} poses")
 
         self.async_request_map(on_map)
     
-
     # --------------- EX. CREDIT ----------------------
     @staticmethod
     def optimize_path(path: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
@@ -431,7 +435,49 @@ class PathPlanner(Node):
         :return     [[(x,y)]] The optimized path as a list of tuples (grid coordinates)
         """
         #self.loginfo("Optimizing path")
-        pass
+
+        for i in range(len(path) - 3, -1, -1): # have to move backwards to avoid IndexError
+        # define the current, next and next + 1 point
+            current_pose = path[i]
+            next = path[i + 1]
+            next_plus = path[i + 2]
+
+            # check if the points are colinear
+            check_line = PathPlanner.is_colinear(current_pose, next, next_plus)
+            if check_line:
+                del path[i + 1] # remove point that is in the middle of the line segment
+ 
+        return path
+    
+    @staticmethod # helper method for optimize path
+    def is_colinear(pt_1:tuple, pt_2:tuple, pt_3:tuple):
+                """
+                Returns true if the three points are colinear, false if they are not.
+                """
+                # slope calculator helper method
+                def calc_slope(pt_a:tuple, pt_b:tuple):
+
+                    # assign (x,y) to input tuples
+                    x1, y1 = pt_a[0], pt_a[1]
+                    x2, y2 = pt_b[0], pt_b[1]
+
+                    # calculate slope
+                    if (y2 - y1) == 0:
+                        slope = (y2 - y1) / (x2 - x1)
+                    elif (x1 == x2 ) and (y1 == y2):
+                        print("two identical points")
+                        slope = None
+                    else:
+                        slope = (x2 - x1) / (y2 - y1)
+                    return slope
+
+                # slope calculations
+                slope_1_2 = calc_slope(pt_1, pt_2)
+                slope_2_3 = calc_slope(pt_2, pt_3)
+
+                # logic handling
+                if slope_1_2 == slope_2_3: return True
+                else: return False
 
 def main(args=None):
     rclpy.init(args=args)

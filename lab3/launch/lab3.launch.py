@@ -15,6 +15,11 @@ def generate_launch_description():
         'simple_map.yaml'
     )
 
+    rviz_config_dir = os.path.join(
+        get_package_share_directory('lab3'),
+        'rviz',
+        'lab3_config.rviz')
+
     # map_server node
     map_server = Node(
         package='nav2_map_server',
@@ -68,9 +73,16 @@ def generate_launch_description():
             get_package_share_directory('turtlebot3_bringup'), 'launch'), '/rviz2.launch.py'])
     )
 
+    rviz2 =  Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        arguments=['-d', rviz_config_dir],
+        output='screen')
+
     return LaunchDescription([
         path_planner,
-        rviz,
+        rviz2,
         turtlebot,
         static_tf,
         lifecycle_manager,
