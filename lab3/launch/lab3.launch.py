@@ -41,10 +41,19 @@ def generate_launch_description():
                     {'node_names': ['map_server']}]
     ) 
 
+    # path planner node (server)
     path_planner = Node(
         package='lab3',
         executable='path_planner.py',
         name='planner',
+        output='screen'
+    )
+
+    # driver node (client)
+    driver = Node(
+        package='lab3',
+        executable="driver.py",
+        name='driver',
         output='screen'
     )
 
@@ -82,6 +91,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         path_planner,
+        driver,
         rviz2,
         turtlebot,
         static_tf,

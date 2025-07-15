@@ -7,7 +7,7 @@ from rclpy.node import Node
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist, PoseStamped, PoseWithCovarianceStamped
 from scipy.spatial.transform import Rotation as R
-from nav_msgs.srv import GetPlan, GetMap, GetPlanResponse
+from nav_msgs.srv import GetPlan, GetMap, GetPlan_Response
 
 class Driver(Node):
     # brings back memories from 2002
@@ -37,7 +37,7 @@ class Driver(Node):
 
         # subscribers and publishers. i think this syntax is correct. ros2 can be weird compared to Noetic lol
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.update_odometry, 10)
-        self.sub_goal = self.create_subscription(PoseStamped, '/move_base_simple/goal', self.go_to, 10)
+        self.sub_goal = self.create_subscription(PoseStamped, '/move_base_simple/goal', self.get_path_from_planner, 10)
 
         self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
         self.timer = self.create_timer(0.05, self.state_machine) # self.state_machine is called every 0.05 seconds
@@ -56,17 +56,43 @@ class Driver(Node):
         self.pth = euler[2] # get the yaw value from the returned array
         self.odom_ready = True # set odom data flag to true
     
-    def get_path_from_planner(self, start:PoseStamped, goal:PoseStamped, tol=0.2):
+    def get_path_from_planner(self, msg: PoseStamped):
+        # Wait for odometry before planning
+        if not self.odom_ready:
+            self.get_logger().warn("No odometry data yet!")
+            return
+
+        # Create start pose from current odometry
+        start = PoseStamped()
+        start.header.frame_id = "odom"
+        start.header.stamp = self.get_clock().now().to_msg()
+        start.pose.position.x = self.px
+        start.pose.position.y = self.py
+        start.pose.position.z = 0.0
+        # Set orientation from odometry
+        quat = R.from_euler('z', self.pth).as_quat()
+        start.pose.orientation.x = quat[0]
+        start.pose.orientation.y = quat[1]
+        start.pose.orientation.z = quat[2]
+        start.pose.orientation.w = quat[3]
+
+        goal = msg  # The goal from RViz
+
         path_req = GetPlan.Request()
         path_req.start = start
         path_req.goal = goal
-        path_req.tolerance = tol
+        path_req.tolerance = 0.2
 
-        self.path_client.wait_for_service()
-
-        
+        # Wait for service to be available
         while not self.path_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info("waiting for path_planner to generate path!")
+            self.get_logger().info("Waiting for path_planner service...")
+
+        planned_path_future = self.path_client.call_async(path_req)
+        self.get_logger().info("Requested path from planner.")
+
+        self.get_logger().info(str(planned_path_future))
+
+        # You may want to add a callback to handle the response
 
     def normalize_angle(self, angle): # added to make code more modular. also before i think i did this wrong...
         while angle > math.pi:

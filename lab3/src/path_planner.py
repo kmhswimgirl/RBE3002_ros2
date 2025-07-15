@@ -6,12 +6,14 @@ import math
 import rclpy
 
 from rclpy.node import Node
+from rclpy.task import Future # to make the service call async
 from nav_msgs.srv import GetPlan, GetMap
 from nav_msgs.msg import GridCells, OccupancyGrid, Path, Odometry
 from geometry_msgs.msg import Point, PoseWithCovarianceStamped, PoseStamped
 from typing import List, Tuple
 from PriorityQueue import PriorityQueue
 from rclpy.qos import QoSProfile, DurabilityPolicy
+from rclpy.executors import MultiThreadedExecutor
 
 class PathPlanner(Node):
     def __init__(self):
@@ -28,30 +30,31 @@ class PathPlanner(Node):
         self.c_space = self.create_publisher(GridCells, "/path_planner/c_space", qos)
         self.robot_path = self.create_publisher(Path,'/robot_path', qos)
 
-        # service call for generating path
-        self.path_to_drive = self.create_service(GetPlan, '/path_planner/plan_path', self.plan_path)
+        # Map client
         self.map_client = self.create_client(GetMap, "/map_server/map") # ros2 service list to check for topic. totally got that wrong last time lol
 
- # test subscriber for checking a* accuracy...
-        self.rviz_goal_sub = self.create_subscription(PoseStamped, '/move_base_simple/goal', self.goal_pose, 10)
-        #self.odom_sub = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
-        self.start_position = self.create_subscription(PoseWithCovarianceStamped, '/initialpose',self.initial_pose,10)
+        # subscribers to the goal and inital positions (no driver service call)
+        # self.rviz_goal_sub = self.create_subscription(PoseStamped, '/move_base_simple/goal', self.goal_pose, 10)
+        # self.start_position = self.create_subscription(PoseWithCovarianceStamped, '/initialpose',self.initial_pose,10)
+
+        # main servce call
+        self.path_to_drive = self.create_service(GetPlan, '/path_planner/plan_path', self.plan_path)
 
         # # c space test -- remove later
         # mapdata = self.request_map()
         # if mapdata is not None:
         #     self.calc_cspace(mapdata, 1)
 
-    def initial_pose(self, msg: PoseWithCovarianceStamped):
-        self.initialPose = PoseStamped()
-        self.initialPose.header = msg.header
-        self.initialPose.pose = msg.pose.pose
-        self.loginfo("Received initial pose.")
+    # def initial_pose(self, msg: PoseWithCovarianceStamped):
+    #     self.initialPose = PoseStamped()
+    #     self.initialPose.header = msg.header
+    #     self.initialPose.pose = msg.pose.pose
+    #     self.loginfo("Received initial pose.")
 
-    def goal_pose(self, msg:PoseStamped):
-        self.goalPose = msg
-        self.loginfo("Received goal pose.")
-        self.plan_path()
+    # def goal_pose(self, msg:PoseStamped):
+    #     self.goalPose = msg
+    #     self.loginfo("Received goal pose.")
+    #     self.plan_path()
 
     # --------------------- easy stuff, should not need any ros2 translating
     @staticmethod
@@ -232,30 +235,6 @@ class PathPlanner(Node):
 
     
     # ---------------------- potential full re-write due to ros2 syntax/logic I HATE THE MAP_SERVER!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-    # @staticmethod
-    # def request_map(node, map_client) -> OccupancyGrid:
-    #     """
-    #     Requests the map from the map server.
-    #     :param node: The rclpy Node (for spinning and logging)
-    #     :param map_client: The client for the GetMap service
-    #     :return [OccupancyGrid] The grid if the service call was successful,
-    #                             None in case of error.
-    #     """
-    #     node.get_logger().info("Requesting the map")
-    #     map_request = GetMap.Request()
-    #     future = map_client.call_async(map_request)
-    #     import rclpy
-    #     while rclpy.ok():
-    #         rclpy.spin_once(node, timeout_sec=0.1)
-    #         if future.done():
-    #             result = future.result()
-    #             if result is not None:
-    #                 node.get_logger().info("Got map")
-    #                 return result.map
-    #             else:
-    #                 node.get_logger().info("Could not get map")
-    #                 return None
         
     def async_request_map(self, callback):
         self.loginfo("Requesting the map")
@@ -389,42 +368,37 @@ class PathPlanner(Node):
 
     # ---------- Plan the Path
 
-    def plan_path(self):
-
-        if self.initialPose is None or self.goalPose is None:
-            self.loginfo("Waiting for both start and goal poses.")
-            return
-
+    def plan_path(self, request, response):
+        self.loginfo("Requesting the map...")
+    
+        self._current_response = response
+        self._current_request = request
+    
         def on_map(mapdata):
             if mapdata is None:
                 self.loginfo("no map")
-                return Path()
-
-            # calculate and diplay c space
-            cspacedata = self.calc_cspace(mapdata, 1)
-
-            # define start and goal Pose stamps
-            start = PathPlanner.world_to_grid(mapdata, self.initialPose.pose.position)
-            goal  = PathPlanner.world_to_grid(mapdata, self.goalPose.pose.position)
+                self._current_response.plan = Path()
+                return
             
-            # a star path planning
+            cspacedata = self.calc_cspace(mapdata, 1)
+            start = PathPlanner.world_to_grid(mapdata, self._current_request.start.pose.position)
+            goal  = PathPlanner.world_to_grid(mapdata, self._current_request.goal.pose.position)
             path  = self.a_star(cspacedata, start, goal)
-            self.loginfo(str(path))
-
-            # optimized path
             optimized_path = PathPlanner.optimize_path(path)
-            self.loginfo(str(optimized_path))
-
+            
             world_path_message = Path()
             world_path_message.header.stamp = self.get_clock().now().to_msg()
             world_path_message.header.frame_id = "map"
             world_path_message.poses = self.path_to_poses(mapdata, optimized_path)
-
+            
+            self._current_response.plan = world_path_message
             self.robot_path.publish(world_path_message)
-            self.loginfo(f"Publishing path: {len(world_path_message.poses)} poses")
-
+    
         self.async_request_map(on_map)
     
+        response.plan = Path()
+        return response
+
     # --------------- EX. CREDIT ----------------------
     @staticmethod
     def optimize_path(path: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
@@ -481,8 +455,10 @@ class PathPlanner(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = PathPlanner()
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
