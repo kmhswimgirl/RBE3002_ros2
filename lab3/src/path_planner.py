@@ -382,7 +382,6 @@ class PathPlanner(Node):
 
         path.reverse() # Cells were put in backwards so reverse list
 
-
         # Publish the expanded cells to be visualized in Rviz
         self.expanded_cells.publish(visitedCells)
 
@@ -410,11 +409,11 @@ class PathPlanner(Node):
             
             # a star path planning
             path  = self.a_star(cspacedata, start, goal)
-            self.loginfo(path)
+            self.loginfo(str(path))
 
             # optimized path
             optimized_path = PathPlanner.optimize_path(path)
-            self.loginfo(optimized_path)
+            self.loginfo(str(optimized_path))
 
             world_path_message = Path()
             world_path_message.header.stamp = self.get_clock().now().to_msg()
