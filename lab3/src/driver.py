@@ -4,8 +4,8 @@
 import rclpy
 import math
 from rclpy.node import Node
-from nav_msgs.msg import Odometry
-from geometry_msgs.msg import Twist, PoseStamped, PoseWithCovarianceStamped
+from nav_msgs.msg import Odometry, Path
+from geometry_msgs.msg import Twist, PoseStamped
 from scipy.spatial.transform import Rotation as R
 from nav_msgs.srv import GetPlan, GetMap, GetPlan_Response
 
@@ -34,6 +34,7 @@ class Driver(Node):
 
         # path stuff
         self.path_to_goal = None
+        self.current_path_index = 0
 
         # subscribers and publishers. i think this syntax is correct. ros2 can be weird compared to Noetic lol
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.update_odometry, 10)
@@ -57,19 +58,19 @@ class Driver(Node):
         self.odom_ready = True # set odom data flag to true
     
     def get_path_from_planner(self, msg: PoseStamped):
-        # Wait for odometry before planning
         if not self.odom_ready:
             self.get_logger().warn("No odometry data yet!")
             return
 
-        # Create start pose from current odometry
+        # start pose from current odom
         start = PoseStamped()
-        start.header.frame_id = "odom"
+        start.header.frame_id = "map"  # Use map frame instead of odom
         start.header.stamp = self.get_clock().now().to_msg()
         start.pose.position.x = self.px
         start.pose.position.y = self.py
         start.pose.position.z = 0.0
-        # Set orientation from odometry
+
+        # Set orientation from odom
         quat = R.from_euler('z', self.pth).as_quat()
         start.pose.orientation.x = quat[0]
         start.pose.orientation.y = quat[1]
@@ -83,16 +84,26 @@ class Driver(Node):
         path_req.goal = goal
         path_req.tolerance = 0.2
 
-        # Wait for service to be available
-        while not self.path_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info("Waiting for path_planner service...")
+        while not self.path_client.wait_for_service(timeout_sec=1.0): # wait for service
+            self.get_logger().info("waiting for path")
 
         planned_path_future = self.path_client.call_async(path_req)
-        self.get_logger().info("Requested path from planner.")
+        planned_path_future.add_done_callback(self.handle_path_response)
+        self.get_logger().info("requested path.")
 
-        self.get_logger().info(str(planned_path_future))
-
-        # You may want to add a callback to handle the response
+    def handle_path_response(self, future):
+        try:
+            response = future.result()
+            if response and response.plan and len(response.plan.poses) > 0:
+                self.path_to_goal = response.plan
+                self.current_path_index = 1 if len(response.plan.poses) > 1 else 0
+                if len(response.plan.poses) > self.current_path_index:
+                    self.go_to(response.plan.poses[self.current_path_index])
+                self.get_logger().info(f"Received path with {len(self.path_to_goal.poses)} poses") # confirm im actually getting the correct path (there is a reason for this lol)
+            else:
+                self.get_logger().warn("path empty")
+        except Exception as e:
+            self.get_logger().error(f"failed to get path")
 
     def normalize_angle(self, angle): # added to make code more modular. also before i think i did this wrong...
         while angle > math.pi:
@@ -160,7 +171,19 @@ class Driver(Node):
             else:
                 self.send_speed(0.0, 0.0)
                 self.state = self.ROBOT_IDLE # stops robot
-                self.get_logger().info("done")
+                self.get_next_point()
+
+    def get_next_point(self):  # iterate to the next pose in the path that was generated from path_planner
+        if self.path_to_goal and self.current_path_index < len(self.path_to_goal.poses) - 1:
+            self.current_path_index += 1
+            next_pose = self.path_to_goal.poses[self.current_path_index]
+            self.go_to(next_pose)
+            self.get_logger().info(f"Moving to waypoint {self.current_path_index}/{len(self.path_to_goal.poses)-1}")
+        else:
+            self.get_logger().info("Reached final destination!")
+            self.state = self.ROBOT_IDLE
+            self.path_to_goal = None
+            self.current_path_index = 0
 
 def main(args=None): # i think i got this right? idk
     rclpy.init(args=args)

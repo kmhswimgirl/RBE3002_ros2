@@ -33,28 +33,60 @@ class PathPlanner(Node):
         # Map client
         self.map_client = self.create_client(GetMap, "/map_server/map") # ros2 service list to check for topic. totally got that wrong last time lol
 
-        # subscribers to the goal and inital positions (no driver service call)
-        # self.rviz_goal_sub = self.create_subscription(PoseStamped, '/move_base_simple/goal', self.goal_pose, 10)
-        # self.start_position = self.create_subscription(PoseWithCovarianceStamped, '/initialpose',self.initial_pose,10)
-
         # main servce call
         self.path_to_drive = self.create_service(GetPlan, '/path_planner/plan_path', self.plan_path)
 
-        # # c space test -- remove later
-        # mapdata = self.request_map()
-        # if mapdata is not None:
-        #     self.calc_cspace(mapdata, 1)
+        # Subscribe to map topic instead of caching via service
+        self.map_sub = self.create_subscription(
+            OccupancyGrid, 
+            '/map', 
+            self.map_callback, 
+            10
+        )
+        
+        # cached map constants
+        self.cached_map = None
+        self.map_ready = False
 
-    # def initial_pose(self, msg: PoseWithCovarianceStamped):
-    #     self.initialPose = PoseStamped()
-    #     self.initialPose.header = msg.header
-    #     self.initialPose.pose = msg.pose.pose
-    #     self.loginfo("Received initial pose.")
+        # Cache map at startup
+        self.create_timer(2.0, self.cache_map_once)
 
-    # def goal_pose(self, msg:PoseStamped):
-    #     self.goalPose = msg
-    #     self.loginfo("Received goal pose.")
-    #     self.plan_path()
+    # ----------------------- Map Stuff ---------------------------------
+    # this will 100% screw me over later when slam_toolbox is used.
+    def cache_map_once(self): 
+        """
+        get initial map
+        """
+        if self.map_ready: # return the map if it is there
+            return
+            
+        if self.map_client.wait_for_service(timeout_sec=1.0): # wait for map server service
+            self.loginfo("Caching map...")
+            map_request = GetMap.Request()
+            future = self.map_client.call_async(map_request)
+            future.add_done_callback(self.map_cache_callback) # call map cache callback to process the incoming mapdata
+        else:
+            self.loginfo("caching not available")
+
+    def map_cache_callback(self, future): 
+        try:
+            result = future.result()
+            if result and result.map:
+                self.cached_map = result.map
+                self.map_ready = True
+                self.loginfo("cached map")
+            else:
+                self.loginfo("fail")
+        except Exception as e:
+            self.loginfo("fail 2")
+
+    def map_callback(self, msg: OccupancyGrid): # maybe working function to use whenever the map gets changes (or when you re call the plan_path service)
+        """
+        Update the whenever it changes
+        """
+        self.cached_map = msg
+        self.map_ready = True
+        self.loginfo("Map updated")
 
     # --------------------- easy stuff, should not need any ros2 translating
     @staticmethod
@@ -232,15 +264,6 @@ class PathPlanner(Node):
             world_path.append(pose_message)
 
         return world_path
-
-    
-    # ---------------------- potential full re-write due to ros2 syntax/logic I HATE THE MAP_SERVER!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        
-    def async_request_map(self, callback):
-        self.loginfo("Requesting the map")
-        map_request = GetMap.Request()
-        future = self.map_client.call_async(map_request)
-        future.add_done_callback(lambda fut: callback(fut.result().map if fut.result() else None))
         
     # ------------------ C SPACE & A STAR
 
@@ -368,35 +391,36 @@ class PathPlanner(Node):
 
     # ---------- Plan the Path
 
-    def plan_path(self, request, response): # this is the service call back that sends 
-        self.loginfo("Requesting the map...")
-    
-        self.turtlebot_path = response
-        self.turtlebot_position = request
-    
-        def on_map(mapdata):
-            if mapdata is None:
-                self.loginfo("no map")
-                self.turtlebot_path.plan = Path()
-                return
-            
-            cspacedata = self.calc_cspace(mapdata, 1)
-            start = PathPlanner.world_to_grid(mapdata, self.turtlebot_position.start.pose.position)
-            goal  = PathPlanner.world_to_grid(mapdata, self.turtlebot_position.goal.pose.position)
-            path  = self.a_star(cspacedata, start, goal)
-            optimized_path = PathPlanner.optimize_path(path)
-            
-            world_path_message = Path()
-            world_path_message.header.stamp = self.get_clock().now().to_msg()
-            world_path_message.header.frame_id = "map"
-            world_path_message.poses = self.path_to_poses(mapdata, optimized_path)
-            
-            self.turtlebot_path.plan = world_path_message
-            self.robot_path.publish(world_path_message)
-    
-        self.async_request_map(on_map)
-    
-        response.plan = Path()
+    def plan_path(self, request, response):
+        self.loginfo(f"Start: ({request.start.pose.position.x}, {request.start.pose.position.y}, Goal: ({request.goal.pose.position.x}, {request.goal.pose.position.y})")
+        
+        if not self.map_ready or self.cached_map is None: # Use the always-current cached map
+            self.loginfo("No map available")
+            response.plan = Path()
+            return response
+        
+        mapdata = self.cached_map 
+
+        cspacedata = self.calc_cspace(mapdata, 1) # calc C space
+        start = PathPlanner.world_to_grid(mapdata, request.start.pose.position)
+        goal  = PathPlanner.world_to_grid(mapdata, request.goal.pose.position)
+        self.loginfo(f"Grid start: {start}, Grid goal: {goal}") # confirm start/goal pos
+        
+        path  = self.a_star(cspacedata, start, goal) # generate path with A*
+        self.loginfo(f"A* returned path with {len(path)} points")
+        
+        optimized_path = PathPlanner.optimize_path(path) # optimize path by removing co-linear points
+        self.loginfo(f"Optimized path has {len(optimized_path)} points")
+        
+        world_path_message = Path() # make world_path_msg into a Path data type
+        world_path_message.header.stamp = self.get_clock().now().to_msg()
+        world_path_message.header.frame_id = "map"
+        world_path_message.poses = self.path_to_poses(mapdata, optimized_path)
+        
+        self.loginfo(f"Publishing path with {len(world_path_message.poses)} poses") # confim path opt actually works
+        self.robot_path.publish(world_path_message)
+        
+        response.plan = world_path_message
         return response
 
     # --------------- EX. CREDIT ----------------------
@@ -454,10 +478,8 @@ class PathPlanner(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = PathPlanner()
-    executor = MultiThreadedExecutor()
-    executor.add_node(node)
     try:
-        executor.spin()
+        rclpy.spin(node)
     except KeyboardInterrupt:
         pass
     finally:
