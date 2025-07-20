@@ -4,17 +4,16 @@
 import rclpy
 import math
 from rclpy.node import Node
-from nav_msgs.msg import Odometry, Path
+from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist, PoseStamped
 from scipy.spatial.transform import Rotation as R
-from nav_msgs.srv import GetPlan, GetMap, GetPlan_Response
+from nav_msgs.srv import GetPlan
 
 class Driver(Node):
     # brings back memories from 2002
     ROBOT_IDLE = 0
     ROBOT_ROTATE = 1
     ROBOT_DRIVE = 2
-    # ROBOT_DONE = 3
 
     def __init__(self):
         super().__init__('driver')

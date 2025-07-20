@@ -6,14 +6,13 @@ import math
 import rclpy
 
 from rclpy.node import Node
-from rclpy.task import Future # to make the service call async
 from nav_msgs.srv import GetPlan, GetMap
-from nav_msgs.msg import GridCells, OccupancyGrid, Path, Odometry
-from geometry_msgs.msg import Point, PoseWithCovarianceStamped, PoseStamped
+from nav_msgs.msg import GridCells, OccupancyGrid, Path
+from geometry_msgs.msg import Point, PoseStamped
 from typing import List, Tuple
 from PriorityQueue import PriorityQueue
 from rclpy.qos import QoSProfile, DurabilityPolicy
-from rclpy.executors import MultiThreadedExecutor
+
 
 class PathPlanner(Node):
     def __init__(self):
