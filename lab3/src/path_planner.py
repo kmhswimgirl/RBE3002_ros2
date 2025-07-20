@@ -368,21 +368,21 @@ class PathPlanner(Node):
 
     # ---------- Plan the Path
 
-    def plan_path(self, request, response):
+    def plan_path(self, request, response): # this is the service call back that sends 
         self.loginfo("Requesting the map...")
     
-        self._current_response = response
-        self._current_request = request
+        self.turtlebot_path = response
+        self.turtlebot_position = request
     
         def on_map(mapdata):
             if mapdata is None:
                 self.loginfo("no map")
-                self._current_response.plan = Path()
+                self.turtlebot_path.plan = Path()
                 return
             
             cspacedata = self.calc_cspace(mapdata, 1)
-            start = PathPlanner.world_to_grid(mapdata, self._current_request.start.pose.position)
-            goal  = PathPlanner.world_to_grid(mapdata, self._current_request.goal.pose.position)
+            start = PathPlanner.world_to_grid(mapdata, self.turtlebot_position.start.pose.position)
+            goal  = PathPlanner.world_to_grid(mapdata, self.turtlebot_position.goal.pose.position)
             path  = self.a_star(cspacedata, start, goal)
             optimized_path = PathPlanner.optimize_path(path)
             
@@ -391,7 +391,7 @@ class PathPlanner(Node):
             world_path_message.header.frame_id = "map"
             world_path_message.poses = self.path_to_poses(mapdata, optimized_path)
             
-            self._current_response.plan = world_path_message
+            self.turtlebot_path.plan = world_path_message
             self.robot_path.publish(world_path_message)
     
         self.async_request_map(on_map)
@@ -419,7 +419,6 @@ class PathPlanner(Node):
             check_line = PathPlanner.is_colinear(current_pose, next, next_plus)
             if check_line:
                 del path[i + 1] # remove point that is in the middle of the line segment
- 
         return path
     
     @staticmethod # helper method for optimize path
