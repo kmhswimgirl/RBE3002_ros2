@@ -36,12 +36,7 @@ class PathPlanner(Node):
         self.path_to_drive = self.create_service(GetPlan, '/path_planner/plan_path', self.plan_path)
 
         # Subscribe to map topic instead of caching via service
-        self.map_sub = self.create_subscription(
-            OccupancyGrid, 
-            '/map', 
-            self.map_callback, 
-            10
-        )
+        self.map_sub = self.create_subscription(OccupancyGrid, '/map', self.map_callback, qos)
         
         # cached map constants
         self.cached_map = None
