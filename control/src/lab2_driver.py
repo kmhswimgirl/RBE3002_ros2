@@ -5,7 +5,7 @@ import rclpy
 import math
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import Twist, PoseStamped
+from geometry_msgs.msg import TwistStamped, PoseStamped
 from scipy.spatial.transform import Rotation as R
 
 class Control(Node):
@@ -15,8 +15,8 @@ class Control(Node):
     ROBOT_DRIVE = 2
 
     def __init__(self):
-        super().__init__('lab2')
-        # have to init variables to avoid attribute error
+        super().__init__('control')
+        # have to init variables to avoid attribute errors
 
         # constructor
         self.px = None
@@ -33,10 +33,11 @@ class Control(Node):
         # subscribers and publishers. i think this syntax is correct. ros2 can be weird compared to Noetic lol
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.update_odometry, 10)
         self.sub_goal = self.create_subscription(PoseStamped, '/move_base_simple/goal', self.go_to, 10)
-        self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.cmd_vel_pub = self.create_publisher(TwistStamped, '/cmd_vel', 10)
+
         self.timer = self.create_timer(0.05, self.state_machine) # self.state_machine is called every 0.05 seconds
 
-        self.get_logger().info("lab2 node initialized") # confirmation that i did not screw anything above up too badly
+        self.get_logger().info("Controller initialized") # confirmation that i did not screw anything above up too badly
 
     def update_odometry(self, msg: Odometry): # same as previously, just used a diff library 
         self.px = msg.pose.pose.position.x
@@ -54,10 +55,10 @@ class Control(Node):
             angle += 2 * math.pi
         return angle
 
-    def send_speed(self, linear_speed, angular_speed): # publish speed to /cmd_vel topic (MAKE SURE TO CHANGE GZ_BRIDGE!!!!!!!!)
-        msg = Twist()
-        msg.linear.x = linear_speed
-        msg.angular.z = angular_speed
+    def send_speed(self, linear_speed, angular_speed): # publish speed to /cmd_vel topic
+        msg = TwistStamped()
+        msg.twist.linear.x = linear_speed
+        msg.twist.angular.z = angular_speed
         self.cmd_vel_pub.publish(msg) # publish speed to /cmd_vel topic
 
     def go_to(self, msg: PoseStamped): # callback for placing a goal location in rviz
