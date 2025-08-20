@@ -14,7 +14,17 @@ find_package(std_msgs REQUIRED)
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)55
 
+install(PROGRAMS
+  src/frontiers.py # my lab 3 node
+  DESTINATION lib/mapping
+)
 
+install(DIRECTORY
+  launch
+  rviz
+  worlds
+  DESTINATION share/${PROJECT_NAME}/
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
