@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(planning)
+project(pathing)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -22,7 +22,7 @@ install(DIRECTORY
 install(PROGRAMS
   src/path_planner.py
   src/lab3.py
-  DESTINATION lib/planning
+  DESTINATION lib/pathing
 )
 
 if(BUILD_TESTING)
