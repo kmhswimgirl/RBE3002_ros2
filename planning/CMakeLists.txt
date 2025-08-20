@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(lab2)
+project(planning)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -7,26 +7,22 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-find_package(rclpy REQUIRED)
-find_package(rclcpp REQUIRED)
-find_package(std_msgs REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
 install(DIRECTORY
   launch
+  maps
+  config
+  rviz
   DESTINATION share/${PROJECT_NAME}/
 )
 
-install(
-  PROGRAMS src/lab2_code.py
-  DESTINATION lib/lab2
-)
-
 install(PROGRAMS
-  src/lab2_timer.py
-  DESTINATION lib/lab2
+  src/path_planner.py
+  src/lab3.py
+  DESTINATION lib/planning
 )
 
 if(BUILD_TESTING)

@@ -1,17 +1,24 @@
 import os
+import launch_ros.actions
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch_ros.actions import Node
-import launch_ros.actions
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.actions import IncludeLaunchDescription
 
 def generate_launch_description():
 
     # map file path for simple_map
     map_file_path = os.path.join(
-        get_package_share_directory('lab3'), 
+        get_package_share_directory('planning'), 
         'maps',
         'simple_map.yaml'
     )
+
+    rviz_config_dir = os.path.join(
+        get_package_share_directory('planning'),
+        'rviz',
+        'lab3_config.rviz')
 
     # map_server node
     map_server = Node(
@@ -34,11 +41,27 @@ def generate_launch_description():
                     {'node_names': ['map_server']}]
     ) 
 
+    # path planner node (server)
+    path_planner = Node(
+        package='planning',
+        executable='path_planner.py',
+        name='planner',
+        output='screen'
+    )
+
+    # driver node (client)
+    driver = Node(
+        package='control',
+        executable="controller.py",
+        name='driver',
+        output='screen'
+    )
+
     # map to odom static transform
     static_tf = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
-        name='static_map_to_odom',
+        name='map_to_odom_tf',
         arguments=['--x', '0', '--y', '0', '--z', '0',
         '--roll', '0', '--pitch', '0', '--yaw', '0',
         '--frame-id', 'map',
@@ -46,17 +69,32 @@ def generate_launch_description():
         output='screen'
     )
 
-    # launch rviz2
-    rviz2 = Node(
+    turtlebot = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([os.path.join(
+            get_package_share_directory('turtlebot3_gazebo'), 'launch'), '/empty_world.launch.py']),
+        launch_arguments = [
+            ('use_sim_time', 'True')
+        ]
+    )
+
+    rviz = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([os.path.join(
+            get_package_share_directory('turtlebot3_bringup'), 'launch'), '/rviz2.launch.py'])
+    )
+
+    rviz2 =  Node(
         package='rviz2',
         executable='rviz2',
         name='rviz2',
-        output='screen'
-    )
+        arguments=['-d', rviz_config_dir],
+        output='screen')
 
-    return LaunchDescription([ # return all of the launch functions
-        map_server,
-        lifecycle_manager, 
+    return LaunchDescription([
+        path_planner,
+        driver,
+        rviz2,
+        turtlebot,
         static_tf,
-        rviz2
+        lifecycle_manager,
+        map_server
     ])

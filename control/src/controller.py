@@ -5,18 +5,18 @@ import rclpy
 import math
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import Twist, PoseStamped
+from geometry_msgs.msg import TwistStamped, PoseStamped
 from scipy.spatial.transform import Rotation as R
 from nav_msgs.srv import GetPlan
 
-class Driver(Node):
+class Controller(Node):
     # brings back memories from 2002
     ROBOT_IDLE = 0
     ROBOT_ROTATE = 1
     ROBOT_DRIVE = 2
 
     def __init__(self):
-        super().__init__('driver')
+        super().__init__('controller')
         # have to init variables to avoid attribute error
 
         # constructor
@@ -39,7 +39,7 @@ class Driver(Node):
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.update_odometry, 10)
         self.sub_goal = self.create_subscription(PoseStamped, '/move_base_simple/goal', self.get_path_from_planner, 10)
 
-        self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.cmd_vel_pub = self.create_publisher(TwistStamped, '/cmd_vel', 10)
         self.timer = self.create_timer(0.05, self.state_machine) # self.state_machine is called every 0.05 seconds
 
         # client service call
@@ -111,10 +111,10 @@ class Driver(Node):
             angle += 2 * math.pi
         return angle
 
-    def send_speed(self, linear_speed, angular_speed): # publish speed to /cmd_vel topic (MAKE SURE TO CHANGE GZ_BRIDGE!!!!!!!!)
-        msg = Twist()
-        msg.linear.x = linear_speed
-        msg.angular.z = angular_speed
+    def send_speed(self, linear_speed, angular_speed): 
+        msg = TwistStamped()
+        msg.twist.angular.z = angular_speed
+        msg.twist.linear.x = linear_speed
         self.cmd_vel_pub.publish(msg) # publish speed to /cmd_vel topic
 
     def go_to(self, msg: PoseStamped): # callback for placing a goal location in rviz
@@ -186,7 +186,7 @@ class Driver(Node):
 
 def main(args=None): # i think i got this right? idk
     rclpy.init(args=args)
-    node = Driver()
+    node = Controller()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
