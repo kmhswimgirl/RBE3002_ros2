@@ -8,7 +8,7 @@ from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist, PoseStamped
 from scipy.spatial.transform import Rotation as R
 
-class Lab2(Node):
+class Control(Node):
     # brings back memories from 2002
     ROBOT_IDLE = 0
     ROBOT_ROTATE = 1
@@ -117,7 +117,7 @@ class Lab2(Node):
 
 def main(args=None): # i think i got this right? idk
     rclpy.init(args=args)
-    node = Lab2()
+    node = Control()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(lab2)
+project(control)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -12,22 +12,20 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
-# find_package(<dependency> REQUIRED)
+# find_package(<dependency> REQUIRED)55
+
 
 install(DIRECTORY
   launch
   DESTINATION share/${PROJECT_NAME}/
 )
 
-install(
-  PROGRAMS src/lab2_code.py
-  DESTINATION lib/lab2
+install(PROGRAMS
+  src/lab2_driver.py # my individual lab 2 node
+  src/controller.py # may lab 3 node
+  DESTINATION lib/control
 )
 
-install(PROGRAMS
-  src/lab2_timer.py
-  DESTINATION lib/lab2
-)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
