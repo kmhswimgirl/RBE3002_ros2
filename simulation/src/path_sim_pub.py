@@ -34,11 +34,17 @@ class PathPublisher(Node):
 
         self.path_pub.publish(path_msg)
         self.get_logger().info(f'Published path {path_coords}. In frame: {frame}')
+        rclpy.sl
 
 def main(args=None):
     rclpy.init(args=args)
     node = PathPublisher()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    node.destroy_node()
+    rclpy.shutdown()
     
-
 if __name__ == '__main__':
     main()
