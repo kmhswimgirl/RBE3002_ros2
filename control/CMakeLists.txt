@@ -21,7 +21,7 @@ install(DIRECTORY
 )
 
 install(PROGRAMS
-  src/lab2_driver.py # my individual lab 2 node
+  src/lab2_controller.py # my individual lab 2 node
   src/controller.py # my lab 3 node
   DESTINATION lib/control
 )
