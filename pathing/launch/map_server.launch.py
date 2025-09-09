@@ -21,7 +21,7 @@ def generate_launch_description():
         output='screen',
         parameters=[{'yaml_filename':map_file_path}]
     )
-
+    
     # start the node lifecyle manager
     lifecycle_manager = launch_ros.actions.Node(
         package='nav2_lifecycle_manager',

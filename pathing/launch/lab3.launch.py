@@ -10,13 +10,13 @@ def generate_launch_description():
 
     # map file path for simple_map
     map_file_path = os.path.join(
-        get_package_share_directory('planning'), 
+        get_package_share_directory('pathing'), 
         'maps',
         'simple_map.yaml'
     )
 
     rviz_config_dir = os.path.join(
-        get_package_share_directory('planning'),
+        get_package_share_directory('pathing'),
         'rviz',
         'lab3_config.rviz')
 
@@ -43,9 +43,9 @@ def generate_launch_description():
 
     # path planner node (server)
     path_planner = Node(
-        package='planning',
+        package='pathing',
         executable='path_planner.py',
-        name='planner',
+        name='a_star',
         output='screen'
     )
 
