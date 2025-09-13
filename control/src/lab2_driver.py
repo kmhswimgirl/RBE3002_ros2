@@ -35,6 +35,9 @@ class Control(Node):
         self.sub_goal = self.create_subscription(PoseStamped, '/move_base_simple/goal', self.go_to, 10)
         self.cmd_vel_pub = self.create_publisher(TwistStamped, '/cmd_vel', 10)
 
+        # for the test node in the simulation package
+        self.init_pose = self.create_publisher(PoseStamped,'/start_pose', 10)
+
         self.timer = self.create_timer(0.05, self.state_machine) # self.state_machine is called every 0.05 seconds
 
         self.get_logger().info("Controller initialized") # confirmation that i did not screw anything above up too badly
@@ -57,6 +60,7 @@ class Control(Node):
 
     def send_speed(self, linear_speed, angular_speed): # publish speed to /cmd_vel topic
         msg = TwistStamped()
+        msg.header.frame_id = '/odom'
         msg.twist.linear.x = linear_speed
         msg.twist.angular.z = angular_speed
         self.cmd_vel_pub.publish(msg) # publish speed to /cmd_vel topic
