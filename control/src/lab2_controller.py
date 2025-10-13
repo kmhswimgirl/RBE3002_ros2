@@ -8,14 +8,14 @@ from nav_msgs.msg import Odometry
 from geometry_msgs.msg import TwistStamped, PoseStamped
 from scipy.spatial.transform import Rotation as R
 
-class Control(Node):
+class Controller(Node):
     # brings back memories from 2002
     ROBOT_IDLE = 0
     ROBOT_ROTATE = 1
     ROBOT_DRIVE = 2
 
     def __init__(self):
-        super().__init__('control')
+        super().__init__('lab2_controller')
         # have to init variables to avoid attribute errors
 
         # constructor
@@ -118,7 +118,7 @@ class Control(Node):
 
 def main(args=None): # i think i got this right? idk
     rclpy.init(args=args)
-    node = Control()
+    node = Controller()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
