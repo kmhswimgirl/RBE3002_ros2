@@ -45,7 +45,7 @@ def generate_launch_description():
     path_planner = Node(
         package='pathing',
         executable='path_planner.py',
-        name='A*',
+        name='A_star',
         output='screen'
     )
 
