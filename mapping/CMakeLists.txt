@@ -22,7 +22,6 @@ install(PROGRAMS
 install(DIRECTORY
   launch
   rviz
-  worlds
   DESTINATION share/${PROJECT_NAME}/
 )
 

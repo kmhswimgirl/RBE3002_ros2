@@ -27,5 +27,5 @@ class Frontiers:
         # take all frontier cells and combine them into groups
         # ----------------------------
         # for cell in frontier_cells
-            #
+            # apparently this is just a dfs?
         
