@@ -8,7 +8,7 @@ def generate_launch_description():
 
     # map file path for simple_map
     map_file_path = os.path.join(
-        get_package_share_directory('planning'), 
+        get_package_share_directory('pathing'), 
         'maps',
         'simple_map.yaml'
     )
