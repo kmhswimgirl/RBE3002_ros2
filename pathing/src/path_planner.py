@@ -29,50 +29,14 @@ class PathPlanner(Node):
         self.c_space = self.create_publisher(GridCells, "/path_planner/c_space", qos)
         self.robot_path = self.create_publisher(Path,'/robot_path', qos)
 
-        # Map client
-        self.map_client = self.create_client(GetMap, "/map_server/map") # ros2 service list to check for topic. totally got that wrong last time lol
-
         # main servce call
         self.path_to_drive = self.create_service(GetPlan, '/path_planner/plan_path', self.plan_path)
 
         # Subscribe to map topic instead of caching via service
         self.map_sub = self.create_subscription(OccupancyGrid, '/map', self.map_callback, qos)
         
-        # cached map constants
-        self.cached_map = None
-        self.map_ready = False
-
-        # Cache map at startup
-        self.create_timer(2.0, self.cache_map_once)
 
     # ----------------------- Map Stuff ---------------------------------
-    # this will 100% screw me over later when slam_toolbox is used.
-    def cache_map_once(self): 
-        """
-        get initial map
-        """
-        if self.map_ready: # return the map if it is there
-            return
-            
-        if self.map_client.wait_for_service(timeout_sec=1.0): # wait for map server service
-            self.loginfo("Caching map...")
-            map_request = GetMap.Request()
-            future = self.map_client.call_async(map_request)
-            future.add_done_callback(self.map_cache_callback) # call map cache callback to process the incoming mapdata
-        else:
-            self.loginfo("caching not available")
-
-    def map_cache_callback(self, future): 
-        try:
-            result = future.result()
-            if result and result.map:
-                self.cached_map = result.map
-                self.map_ready = True
-                self.loginfo("cached map")
-            else:
-                self.loginfo("fail")
-        except Exception as e:
-            self.loginfo("fail 2")
 
     def map_callback(self, msg: OccupancyGrid): # maybe working function to use whenever the map gets changes (or when you re call the plan_path service)
         """
