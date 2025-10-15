@@ -23,6 +23,7 @@ install(DIRECTORY
 install(PROGRAMS
   src/lab2_controller.py # my individual lab 2 node
   src/controller.py # my lab 3 node
+  src/cb_groups.py # callback groups node
   DESTINATION lib/control
 )
 
