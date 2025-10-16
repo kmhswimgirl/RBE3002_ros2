@@ -51,61 +51,56 @@ class Controller(Node):
         msg = TwistStamped()
         msg.twist.angular.z = float(angular_speed)
         msg.twist.linear.x = float(linear_speed)
-        self.cmd_vel_pub.publish(msg) # publish speed to /cmd_vel topic
 
-    def drive(self, distance: float, linear_speed: float):  # from 3002 D25
-        """
+        self.cmd_vel_pub.publish(msg) 
+
+    def drive(self, distance: float, linear_speed: float):
+        '''
         Drives the robot in a straight line.
         :param distance     [float] [m]   The distance to cover.
         :param linear_speed [float] [m/s] The forward linear speed.
-        """
+        '''
         error = 1000
-        tolerance = 0.05 # Distance tolerance of 0.05 meters
+        tolerance = 0.05 # meters
         initialx = self.px
         initialy = self.py
         
-        # Run while the distance between the robot's initial position and current position is less than the
-        # specified distance (within the tolerance)
-        while abs(error) > tolerance and rclpy.ok():
+        while abs(error) > tolerance and rclpy.ok(): # while robot is not close enough to goal
         
-            distanceTraveled = math.sqrt((self.px - initialx)**2 + (self.py - initialy)**2) # Use distance formula to calculate traveled distance
-            self.send_speed(linear_speed, 0) # Set linear speed
-            error = distance - distanceTraveled # Calculate error between current position and initial position
+            distanceTraveled = math.sqrt((self.px - initialx)**2 + (self.py - initialy)**2)
+            self.send_speed(linear_speed, 0) 
+            error = distance - distanceTraveled
             
-            self.rate.sleep()
+            self.rate.sleep() # small delay
             
-        self.send_speed(0,0) # Stop robot when the while loop is exited, meaning the robot got to the position
+        self.send_speed(0,0) 
 
-    def rotate(self, angle: float, aspeed: float): # from 3002 D25
-        """
+    def rotate(self, angle: float, aspeed: float):
+        '''
         Rotates the robot around the body center by the given angle.
         :param angle         [float] [rad]   The distance to cover.
         :param angular_speed [float] [rad/s] The angular speed.
-        """
+        '''
         error = 10000
-        tolerance = 0.05 # Distance tolerance of 0.1 radians
+        tolerance = 0.05 # radians?
         goalAngle  = angle
 
-        # Account for when the angle is less than -pi or greater than pi
-        # Map it to angles between -pi and pi - ex. if angle given is 3pi/2, make robot go to -pi/2 instead because they are the same position
+        # account for 0 and 2pi being the same position etc.
         if goalAngle < 0 and abs(goalAngle) > math.pi:
             goalAngle = 2*math.pi - goalAngle
         elif goalAngle > 0 and goalAngle > math.pi:
             goalAngle = goalAngle - 2*math.pi
 
-        # Run while the absolute value of the error is greater than the tolerance
-        while (abs(error) > tolerance) and rclpy.ok():
-            # If angle is negative make angular speed negative to go clockwise and if positive, keep angular speed positive to go counterclockwise
+        while (abs(error) > tolerance) and rclpy.ok(): # while robot is not close enough to goal
             if(goalAngle < self.pth):
                 self.send_speed(0, -aspeed)
             else:
                 self.send_speed(0, aspeed)
 
-            error = self.pth - goalAngle # Calculate error between current angle and initial angle
-           
+            error = self.pth - goalAngle 
             self.rate.sleep()
                     
-        self.send_speed(0,0) # Stop robot when the while loop is exited, meaning the robot got to the angle
+        self.send_speed(0,0) 
 
     def go_to(self, msg: PoseStamped): # from 3002 D25
         """
@@ -113,23 +108,19 @@ class Controller(Node):
         This method is a callback bound to a Subscriber.
         :param msg [PoseStamped] The target pose.
         """
-        # quat_orig = msg.pose.orientation
-        # (roll, pitch, yaw) = euler_from_quaternion([quat_orig.x, quat_orig.y, quat_orig.z, quat_orig.w])
+   
+        goal_pos_x = msg.pose.position.x
+        goal_pos_y = msg.pose.position.y
 
-        initialth = self.pth # Robot's current angle
-        newPositionx = msg.pose.position.x
-        newPositiony = msg.pose.position.y
+        initial_x = self.px
+        initial_y = self.py
 
-        initialx = self.px # Robot's current x position
-        initialy = self.py # Robot's current y position
+        newAngle = math.atan2((goal_pos_y - initial_y), (goal_pos_x - initial_x))
 
-        newAngle = math.atan2((newPositiony - initialy), (newPositionx - initialx))
+        self.rotate(newAngle, 0.5)
 
-        self.rotate(newAngle, 0.5) # Call rotate function and set speed to 0.5 rad/sec
-
-        # Calculate distance from current position to new position
-        distance = math.sqrt((newPositionx - initialx)**2 + (newPositiony - initialy)**2) # Use distance formula to calculate distance needed to travel
-        self.drive(distance, 0.1) # Call drive function and set speed to 0.1 m/s
+        distance = math.sqrt((goal_pos_x - initial_x)**2 + (goal_pos_y - initial_y)**2) 
+        self.drive(distance, 0.1) 
     
 
 def main(args=None): # i think i got this right? idk
