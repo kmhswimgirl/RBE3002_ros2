@@ -29,12 +29,11 @@ class Controller(Node):
         self.rate = self.create_rate(30) # Hz
 
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.update_odometry, 10, callback_group=cb_group)
-        self.sub_goal = self.create_subscription(PoseStamped, '/move_base_simple/goal', self.go_to, 10, callback_group=cb_group)
+        self.sub_goal = self.create_subscription(PoseStamped, '/move_base_simple/goal', self.get_path_from_planner, 10, callback_group=cb_group)
 
         self.cmd_vel_pub = self.create_publisher(TwistStamped, '/cmd_vel', 10)
 
-        # client service call
-        # self.path_client = self.create_client(GetPlan, '/path_planner/plan_path')
+        self.path_client = self.create_client(GetPlan, '/path_planner/plan_path')
 
         self.get_logger().info("CB-G Controller Initialized")
 
@@ -102,7 +101,7 @@ class Controller(Node):
                     
         self.send_speed(0,0) 
 
-    def go_to(self, msg: PoseStamped): # from 3002 D25
+    def go_to(self, msg: PoseStamped):
         """
         Calls rotate(), drive(), and rotate() to attain a given pose.
         This method is a callback bound to a Subscriber.
@@ -121,8 +120,68 @@ class Controller(Node):
 
         distance = math.sqrt((goal_pos_x - initial_x)**2 + (goal_pos_y - initial_y)**2) 
         self.drive(distance, 0.1) 
+        
+        self.get_next_point();
     
+    def get_path_from_planner(self, msg: PoseStamped):
+        if not self.odom_ready:
+            self.get_logger().warn("No odometry data yet!")
+            return
 
+        # start pose from current odom
+        start = PoseStamped()
+        start.header.frame_id = "map"  # Use map frame instead of odom
+        start.header.stamp = self.get_clock().now().to_msg()
+        start.pose.position.x = self.px
+        start.pose.position.y = self.py
+        start.pose.position.z = 0.0
+
+        # Set orientation from odom
+        quat = R.from_euler('z', self.pth).as_quat()
+        start.pose.orientation.x = quat[0]
+        start.pose.orientation.y = quat[1]
+        start.pose.orientation.z = quat[2]
+        start.pose.orientation.w = quat[3]
+
+        goal = msg  # The goal from RViz
+
+        path_req = GetPlan.Request()
+        path_req.start = start
+        path_req.goal = goal
+        path_req.tolerance = 0.05
+
+        while not self.path_client.wait_for_service(timeout_sec=1.0): # wait for service
+            self.get_logger().info("waiting for path")
+
+        planned_path_future = self.path_client.call_async(path_req)
+        planned_path_future.add_done_callback(self.handle_path_response)
+        self.get_logger().info("requested path.")
+
+    def handle_path_response(self, future):
+        try:
+            response = future.result() # thank you robotics stack exchange for this
+            if response and response.plan and len(response.plan.poses) > 0:
+                self.path_to_goal = response.plan
+                self.current_path_index = 1 if len(response.plan.poses) > 1 else 0
+                if len(response.plan.poses) > self.current_path_index:
+                    self.go_to(response.plan.poses[self.current_path_index])
+                self.get_logger().info(f"Received path with {len(self.path_to_goal.poses)} poses")
+            else:
+                self.get_logger().warn("path empty")
+        except Exception as e:
+            self.get_logger().error(f"failed to get path")
+
+    def get_next_point(self):  # iterate to the next pose in the path that was generated from path_planner
+        if self.path_to_goal and self.current_path_index < len(self.path_to_goal.poses) - 1:
+            self.current_path_index += 1
+            next_pose = self.path_to_goal.poses[self.current_path_index]
+            self.go_to(next_pose)
+            self.get_logger().info(f"Moving to waypoint {self.current_path_index}/{len(self.path_to_goal.poses)-1}")
+        else:
+            self.get_logger().info("Reached final destination!")
+            self.path_to_goal = None
+            self.current_path_index = 0
+    
 def main(args=None): # i think i got this right? idk
     rclpy.init(args=args)
     node = Controller(0,0,0)
