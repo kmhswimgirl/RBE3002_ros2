@@ -77,11 +77,6 @@ def generate_launch_description():
         ]
     )
 
-    rviz = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([os.path.join(
-            get_package_share_directory('turtlebot3_bringup'), 'launch'), '/rviz2.launch.py'])
-    )
-
     rviz2 =  Node(
         package='rviz2',
         executable='rviz2',
