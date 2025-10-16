@@ -17,14 +17,11 @@ def generate_launch_description():
     rviz = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([os.path.join(
             get_package_share_directory('turtlebot3_bringup'), 'launch'), '/rviz2.launch.py'])
-            # launch_arguments = [
-            # ('use_sim_time', 'True')
-        #]
     )
 
     lab2_node = Node(
         package='control',
-        executable='cb_groups.py',
+        executable='cb_controller.py',
         name='controller',
         output='screen',
         parameters=[{'use_sim_time': True}]

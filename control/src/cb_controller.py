@@ -4,6 +4,7 @@ import rclpy
 import math
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
+from nav_msgs.srv import GetPlan
 from geometry_msgs.msg import TwistStamped, PoseStamped
 from scipy.spatial.transform import Rotation as R
 from rclpy.callback_groups import ReentrantCallbackGroup
@@ -25,12 +26,17 @@ class Controller(Node):
 
         cb_group = ReentrantCallbackGroup() # allow for multiple things at once
 
+        self.rate = self.create_rate(30) # Hz
+
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.update_odometry, 10, callback_group=cb_group)
         self.sub_goal = self.create_subscription(PoseStamped, '/move_base_simple/goal', self.go_to, 10, callback_group=cb_group)
 
         self.cmd_vel_pub = self.create_publisher(TwistStamped, '/cmd_vel', 10)
 
-        self.get_logger().info("driver node initialized")
+        # client service call
+        # self.path_client = self.create_client(GetPlan, '/path_planner/plan_path')
+
+        self.get_logger().info("CB-G Controller Initialized")
 
     def update_odometry(self, msg: Odometry): # same as previously, just used a diff library 
         self.px = msg.pose.pose.position.x
@@ -40,13 +46,6 @@ class Controller(Node):
         euler = rotation.as_euler('xyz')
         self.pth = euler[2] # get the yaw value from the returned array
         self.odom_ready = True # set odom data flag to true
-
-    def normalize_angle(self, angle): # added to make code more modular. also before i think i did this wrong...
-        while angle > math.pi:
-            angle -= 2 * math.pi
-        while angle < -math.pi:
-            angle += 2 * math.pi
-        return angle
     
     def send_speed(self, linear_speed, angular_speed): 
         msg = TwistStamped()
@@ -67,11 +66,13 @@ class Controller(Node):
         
         # Run while the distance between the robot's initial position and current position is less than the
         # specified distance (within the tolerance)
-        while abs(error) > tolerance:
+        while abs(error) > tolerance and rclpy.ok():
         
             distanceTraveled = math.sqrt((self.px - initialx)**2 + (self.py - initialy)**2) # Use distance formula to calculate traveled distance
             self.send_speed(linear_speed, 0) # Set linear speed
             error = distance - distanceTraveled # Calculate error between current position and initial position
+            
+            self.rate.sleep()
             
         self.send_speed(0,0) # Stop robot when the while loop is exited, meaning the robot got to the position
 
@@ -93,8 +94,7 @@ class Controller(Node):
             goalAngle = goalAngle - 2*math.pi
 
         # Run while the absolute value of the error is greater than the tolerance
-        while (abs(error) > tolerance):
-        
+        while (abs(error) > tolerance) and rclpy.ok():
             # If angle is negative make angular speed negative to go clockwise and if positive, keep angular speed positive to go counterclockwise
             if(goalAngle < self.pth):
                 self.send_speed(0, -aspeed)
@@ -102,8 +102,8 @@ class Controller(Node):
                 self.send_speed(0, aspeed)
 
             error = self.pth - goalAngle # Calculate error between current angle and initial angle
-            #print(error)
-            #print(self.pth)
+           
+            self.rate.sleep()
                     
         self.send_speed(0,0) # Stop robot when the while loop is exited, meaning the robot got to the angle
 
@@ -125,14 +125,12 @@ class Controller(Node):
 
         newAngle = math.atan2((newPositiony - initialy), (newPositionx - initialx))
 
-        # Calculate the rotation needed to turn the robot to the new angle
-      #  differenceAngle = initialth - newAngle
-
         self.rotate(newAngle, 0.5) # Call rotate function and set speed to 0.5 rad/sec
 
         # Calculate distance from current position to new position
         distance = math.sqrt((newPositionx - initialx)**2 + (newPositiony - initialy)**2) # Use distance formula to calculate distance needed to travel
         self.drive(distance, 0.1) # Call drive function and set speed to 0.1 m/s
+    
 
 def main(args=None): # i think i got this right? idk
     rclpy.init(args=args)

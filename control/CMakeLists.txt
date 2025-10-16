@@ -12,7 +12,7 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
-# find_package(<dependency> REQUIRED)55
+# find_package(<dependency> REQUIRED)
 
 
 install(DIRECTORY
@@ -23,7 +23,7 @@ install(DIRECTORY
 install(PROGRAMS
   src/lab2_controller.py # my individual lab 2 node
   src/controller.py # my lab 3 node
-  src/cb_groups.py # callback groups node
+  src/cb_controller.py # reworked lab 2 node (for B25 RBE3002)
   DESTINATION lib/control
 )
 
