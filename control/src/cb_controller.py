@@ -35,7 +35,7 @@ class Controller(Node):
 
         self.path_client = self.create_client(GetPlan, '/path_planner/plan_path')
 
-        self.get_logger().info("CB-G Controller Initialized")
+        self.get_logger().info("Controller Initialized")
 
     def update_odometry(self, msg: Odometry): # same as previously, just used a diff library 
         self.px = msg.pose.pose.position.x
@@ -60,7 +60,7 @@ class Controller(Node):
         :param linear_speed [float] [m/s] The forward linear speed.
         '''
         error = 1000
-        tolerance = 0.05 # meters
+        tolerance = 0.02 # meters
         initialx = self.px
         initialy = self.py
         
@@ -81,7 +81,7 @@ class Controller(Node):
         :param angular_speed [float] [rad/s] The angular speed.
         '''
         error = 10000
-        tolerance = 0.05 # radians?
+        tolerance = 0.03 # radians?
         goalAngle  = angle
 
         # account for 0 and 2pi being the same position etc.
@@ -148,7 +148,7 @@ class Controller(Node):
         path_req = GetPlan.Request()
         path_req.start = start
         path_req.goal = goal
-        path_req.tolerance = 0.05
+        path_req.tolerance = 0.03
 
         while not self.path_client.wait_for_service(timeout_sec=1.0): # wait for service
             self.get_logger().info("waiting for path")
@@ -157,9 +157,9 @@ class Controller(Node):
         planned_path_future.add_done_callback(self.handle_path_response)
         self.get_logger().info("requested path.")
 
-    def handle_path_response(self, future):
+    def handle_path_response(self, path_response):
         try:
-            response = future.result() # thank you robotics stack exchange for this
+            response = path_response.result() # thank you robotics stack exchange for this
             if response and response.plan and len(response.plan.poses) > 0:
                 self.path_to_goal = response.plan
                 self.current_path_index = 1 if len(response.plan.poses) > 1 else 0
