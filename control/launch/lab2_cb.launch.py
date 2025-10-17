@@ -6,6 +6,8 @@ from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 def generate_launch_description():   
+    
+
     turtlebot = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([os.path.join(
             get_package_share_directory('turtlebot3_gazebo'), 'launch'), '/empty_world.launch.py']),

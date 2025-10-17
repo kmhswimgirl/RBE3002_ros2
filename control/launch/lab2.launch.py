@@ -21,7 +21,7 @@ def generate_launch_description():
 
     lab2_node = Node(
         package='control',
-        executable='lab2_controller.py',
+        executable='lab2_topic_only.py',
         name='lab2_driver',
         output='screen',
         parameters=[{'use_sim_time': True}]
