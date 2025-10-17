@@ -41,7 +41,7 @@ class PathGenerator(Node):
         return path_message
 
     def generate_path(self):
-        path_array = [(-1, 1), (1,1), (-2,0), (0,0)]
+        path_array = [(-0.5, 0), (0.5,0.5), (-1,0), (0,0)]
         path_of_poses = self.convert_to_nav_msg(path_array)
         self.send_path.publish(path_of_poses)
         self.get_logger().info('published path!')
