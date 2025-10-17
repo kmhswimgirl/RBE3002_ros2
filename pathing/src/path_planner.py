@@ -6,7 +6,7 @@ import math
 import rclpy
 
 from rclpy.node import Node
-from nav_msgs.srv import GetPlan, GetMap
+from nav_msgs.srv import GetPlan
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 from geometry_msgs.msg import Point, PoseStamped
 from typing import List, Tuple
