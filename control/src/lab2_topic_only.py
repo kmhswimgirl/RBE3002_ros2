@@ -117,8 +117,6 @@ class Controller(Node):
 
         distance = math.sqrt((goal_pos_x - initial_x)**2 + (goal_pos_y - initial_y)**2) 
         self.drive(distance, 0.1) 
-        
-        # self.get_next_point();
     
     def handle_path(self, path:Path):
         poses = path.poses
@@ -127,17 +125,6 @@ class Controller(Node):
             self.go_to(pose)
         
         self.get_logger().info("done driving path")
-
-    def get_next_point(self):  # iterate to the next pose in the path that was generated from path_planner
-        if self.path_to_goal and self.current_path_index < len(self.path_to_goal.poses) - 1:
-            self.current_path_index += 1
-            next_pose = self.path_to_goal.poses[self.current_path_index]
-            self.go_to(next_pose)
-            self.get_logger().info(f"Moving to waypoint {self.current_path_index}/{len(self.path_to_goal.poses)-1}")
-        else:
-            self.get_logger().info("Reached final destination!")
-            self.path_to_goal = None
-            self.current_path_index = 0
     
 def main(args=None): # i think i got this right? idk
     rclpy.init(args=args)
