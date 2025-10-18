@@ -16,7 +16,7 @@ find_package(std_msgs REQUIRED)
 
 
 install(DIRECTORY
-  launch
+  launch rviz src
   DESTINATION share/${PROJECT_NAME}/
 )
 

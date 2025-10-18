@@ -28,7 +28,7 @@ class Controller(Node):
         self.rate = self.create_rate(30) # Hz
 
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.update_odometry, 10, callback_group=self.cb_group)
-        self.get_test_path = self.create_subscription(Path,'/test_path', self.handle_path, 10, callback_group=self.cb_group)
+        self.get_test_path = self.create_subscription(Path,'/path_generator', self.handle_path, 10, callback_group=self.cb_group)
 
         self.cmd_vel_pub = self.create_publisher(TwistStamped, '/cmd_vel', 10)
 
@@ -51,11 +51,6 @@ class Controller(Node):
         self.cmd_vel_pub.publish(msg) 
 
     def drive(self, distance: float, linear_speed: float):
-        '''
-        Drives the robot in a straight line.
-        :param distance     [float] [m]   The distance to cover.
-        :param linear_speed [float] [m/s] The forward linear speed.
-        '''
         error = 1000
         tolerance = 0.02 # meters
         initialx = self.px
@@ -72,11 +67,6 @@ class Controller(Node):
         self.send_speed(0,0) 
 
     def rotate(self, angle: float, aspeed: float):
-        '''
-        Rotates the robot around the body center by the given angle.
-        :param angle         [float] [rad]   The distance to cover.
-        :param angular_speed [float] [rad/s] The angular speed.
-        '''
         error = 10000
         tolerance = 0.03 # radians?
         goalAngle  = angle
@@ -99,12 +89,6 @@ class Controller(Node):
         self.send_speed(0,0) 
 
     def go_to(self, msg: PoseStamped):
-        """
-        Calls rotate(), drive(), and rotate() to attain a given pose.
-        This method is a callback bound to a Subscriber.
-        :param msg [PoseStamped] The target pose.
-        """
-   
         goal_pos_x = msg.pose.position.x
         goal_pos_y = msg.pose.position.y
 

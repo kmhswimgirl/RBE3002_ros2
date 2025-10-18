@@ -9,14 +9,14 @@ from nav_msgs.msg import Path
 
 class PathGenerator(Node):
     def __init__(self, px, py, pth, frame):
-        super().__init__('test_path')
+        super().__init__('path_generator')
 
         self.px = px
         self.py = py
         self.pth = pth
         self.frame = frame
 
-        self.send_path = self.create_publisher(Path, '/test_path', 10)
+        self.send_path = self.create_publisher(Path, '/path_generator', 10)
 
         self.get_logger().info('test path node started')
 
