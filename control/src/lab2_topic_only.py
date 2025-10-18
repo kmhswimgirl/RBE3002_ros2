@@ -41,7 +41,7 @@ class Controller(Node):
         rotation = R.from_quat([quat.x, quat.y, quat.z, quat.w])
         euler = rotation.as_euler('xyz')
         self.pth = euler[2] # get the yaw value from the returned array
-        self.odom_ready = True # set odom data flag to true
+        self.odom_ready = True 
     
     def send_speed(self, linear_speed, angular_speed): 
         msg = TwistStamped()
@@ -110,7 +110,7 @@ class Controller(Node):
         
         self.get_logger().info("done driving path")
     
-def main(args=None): # i think i got this right? idk
+def main(args=None):
     rclpy.init(args=args)
     node = Controller(0,0,0)
     executor = MultiThreadedExecutor()
