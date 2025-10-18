@@ -6,6 +6,7 @@ from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 def generate_launch_description():   
+
     turtlebot = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([os.path.join(
             get_package_share_directory('turtlebot3_gazebo'), 'launch'), '/empty_world.launch.py']),
@@ -16,12 +17,15 @@ def generate_launch_description():
 
     rviz = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([os.path.join(
-            get_package_share_directory('turtlebot3_bringup'), 'launch'), '/rviz2.launch.py'])
+            get_package_share_directory('turtlebot3_bringup'), 'launch'), '/rviz2.launch.py']),
+            launch_arguments = [
+            ('use_sim_time', 'True')
+        ]
     )
 
     lab2_node = Node(
         package='control',
-        executable='lab2_controller.py',
+        executable='lab2_topic_only.py',
         name='lab2_driver',
         output='screen',
         parameters=[{'use_sim_time': True}]
