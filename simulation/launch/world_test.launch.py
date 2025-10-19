@@ -31,7 +31,8 @@ def generate_launch_description():
         PythonLaunchDescriptionSource([os.path.join(
             get_package_share_directory('ros_gz_sim'), 'launch'), '/gz_sim.launch.py']),
         launch_arguments = [
-            ('gz_args', [LaunchConfiguration('world'),'.sdf',' -v 4',' -r'])
+            ('gz_args', [LaunchConfiguration('world'),'.sdf',' -v4',' -r']),
+            ('use_sim_time', 'True')
         ]
     )
     
@@ -39,5 +40,5 @@ def generate_launch_description():
     return LaunchDescription([
         gz_sim_resource,
         arguments,
-        gazebo,
+        gazebo
     ])
