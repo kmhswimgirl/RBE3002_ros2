@@ -14,8 +14,7 @@ def generate_launch_description():
     this_dir = os.path.join(get_package_share_directory('mapping'))
     tb3_gz_pkg = os.path.join(get_package_share_directory('turtlebot3_gazebo'), 'launch')
     sim_pkg_launch = os.path.join(get_package_share_directory('simulation'), 'launch')
-    rviz_config_file = os.path.join(get_package_share_directory('control'), 'rviz', 'control_pkg.rviz')
-    nav2_rviz_config = os.path.join(get_package_share_directory('turtlebot3_navigation2'), 'rviz', 'tb3_navigation2.rviz')
+    rviz_config_file = os.path.join(get_package_share_directory('mapping'), 'rviz', 'lab4_slam.rviz')
     map_dir = os.path.join(this_dir, 'maps') 
 
     lidar_test_field = os.path.join(get_package_share_directory('pushback_sim'), 'launch')
@@ -63,8 +62,8 @@ def generate_launch_description():
             os.path.join(tb3_gz_pkg, 'spawn_turtlebot3.launch.py')
         ),
         launch_arguments={
-            'x_pose': '1.0',
-            'y_pose': '1.0',
+            'x_pose': '0.06',
+            'y_pose': '0.0',
             'use_sim_time': 'true'
         }.items()
     )
@@ -77,16 +76,8 @@ def generate_launch_description():
         arguments=['--x', '0', '--y', '0', '--z', '0',
         '--roll', '0', '--pitch', '0', '--yaw', '0',
         '--frame-id', 'map',
-        '--child-frame-id', 'odom'], # supposed to use ros2 style args but i dont think it matters tbh
+        '--child-frame-id', 'odom'], 
         output='screen'
-    )
-
-    turtlebot = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([os.path.join(
-            get_package_share_directory('turtlebot3_gazebo'), 'launch'), '/empty_world.launch.py']),
-        launch_arguments = [
-            ('use_sim_time', 'True')
-        ]
     )
 
     # slam launch file
@@ -123,9 +114,8 @@ def generate_launch_description():
     return LaunchDescription([
         params,
         sim_time,
-        # turtlebot,
-        # small_field_launch,
-        lidar_test,
+        small_field_launch,
+        # lidar_test,
         static_tf,
         robot_state_publisher_cmd,
         spawn_turtlebot_cmd,
