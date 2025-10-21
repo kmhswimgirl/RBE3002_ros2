@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-# RBE 3002: Lab 3 (Jazzy Jalisco version)
-
 import math
 import rclpy
 
@@ -13,13 +11,12 @@ from typing import List, Tuple
 from PriorityQueue import PriorityQueue
 from rclpy.qos import QoSProfile, DurabilityPolicy
 
-
 class PathPlanner(Node):
     def __init__(self):
         super().__init__('path_planner') # initialize node
         self.loginfo = self.get_logger().info
 
-        # QoS config for c-space ?
+        # QoS config for c-space?
         qos = QoSProfile(depth=10)
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
 

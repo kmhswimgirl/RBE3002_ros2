@@ -20,7 +20,7 @@ class Frontiers:
         self.mapdata: OccupancyGrid = None
 
         # publish the calculated nav_goal
-        self.nav_goal = self.create_publisher(PoseStamped, '/nav_goal', qos) # this becomes the "goal in control"
+        self.nav_goal = self.create_publisher(PoseStamped, '/nav_goal', qos) # this becomes the goal in control
 
         # rviz debug
         self.frontiers_rviz = self.create_publisher(GridCells, '/frontier_cells', qos)
@@ -29,9 +29,8 @@ class Frontiers:
         """
         Update the whenever it changes
         """
-
         self.mapdata = msg
-        self.map_ready = True
+        self.publish_to_rviz()
         self.loginfo("Map updated")
 
     def extract_frontier_seeds(self, mapdata: OccupancyGrid) -> List[Tuple[int,int]]:
@@ -64,8 +63,42 @@ class Frontiers:
                     if q in seed_set and q not in visited:
                         stack.append(q)
             clusters.append(comp)
+        
         return clusters
     
+    def publish_to_rviz(self):
+        seeds = self.extract_frontier_seeds(self.mapdata)
+
+        fc = GridCells(
+            header= self.mapdata.header,
+            cell_width= self.mapdata.info.resolution,
+            cell_height= self.mapdata.info.resolution,
+            cells=[PathPlanner.grid_to_world(self.mapdata, s) for s in seeds]
+        )
+        fc.header.frame_id = 'map'
+
+        self.frontier_cells_pub.publish(fc)
+
+        clusters = self.cluster_frontiers(seeds)
+        ma = MarkerArray()
+        for i, cluster in enumerate(clusters):
+            cx, cy = self._calc_centroid(cluster)
+            m = Marker(
+                header=self.mapdata.header,
+                ns='frontier_centroids',
+                id=i,
+                type=Marker.SPHERE,
+                action=Marker.ADD
+            )
+            m.pose.position.x = cx*self.mapdata.info.resolution + self.mapdata.info.origin.position.x
+            m.pose.position.y = cy*self.mapdata.info.resolution + self.mapdata.info.origin.position.y
+            m.pose.position.z = 0.1
+            m.scale.x = m.scale.y = m.scale.z = 0.2
+            m.color.r = 1.0; m.color.a = 0.8
+            ma.markers.append(m)
+        self.centroid_pub.publish(ma)
+
+        
     @staticmethod
     def calc_centroid (cluster: List[Tuple[int,int]]) -> Tuple[float,float]:
         cx = sum(x for x,_ in cluster)/len(cluster)
