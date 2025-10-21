@@ -20,6 +20,7 @@ install(DIRECTORY
 )
 
 install(PROGRAMS
+  src/lab3_topic_only.py
   src/path_planner.py
   DESTINATION lib/pathing
 )

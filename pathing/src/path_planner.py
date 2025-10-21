@@ -1,18 +1,15 @@
 #!/usr/bin/env python3
 
-# RBE 3002: Lab 3 (Jazzy Jalisco version)
-
 import math
 import rclpy
 
 from rclpy.node import Node
-from nav_msgs.srv import GetPlan, GetMap
+from nav_msgs.srv import GetPlan
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 from geometry_msgs.msg import Point, PoseStamped
 from typing import List, Tuple
 from PriorityQueue import PriorityQueue
 from rclpy.qos import QoSProfile, DurabilityPolicy
-
 
 class PathPlanner(Node):
     def __init__(self):
@@ -29,15 +26,15 @@ class PathPlanner(Node):
         self.c_space = self.create_publisher(GridCells, "/path_planner/c_space", qos)
         self.robot_path = self.create_publisher(Path,'/robot_path', qos)
 
-        # main servce call
+        # subscribe to 
+
+        # main service call
         self.path_to_drive = self.create_service(GetPlan, '/path_planner/plan_path', self.plan_path)
 
         # Subscribe to map topic instead of caching via service
         self.map_sub = self.create_subscription(OccupancyGrid, '/map', self.map_callback, qos)
-        
 
     # ----------------------- Map Stuff ---------------------------------
-
     def map_callback(self, msg: OccupancyGrid): # maybe working function to use whenever the map gets changes (or when you re call the plan_path service)
         """
         Update the whenever it changes
@@ -203,7 +200,6 @@ class PathPlanner(Node):
     
     
     # ------------------- medium difficulty, might need a few tweaks
-
     def path_to_poses(self,mapdata: OccupancyGrid, path: List[Tuple[int, int]]) -> List[PoseStamped]:
         """
         Converts the given path into a list of PoseStamped.
@@ -223,8 +219,8 @@ class PathPlanner(Node):
 
         return world_path
         
-    # ------------------ C SPACE & A STAR
 
+    # ------------------ C SPACE & A STAR
     def calc_cspace(self, mapdata: OccupancyGrid, padding: int) -> OccupancyGrid:
         """
         Calculates the C-Space, i.e., makes the obstacles in the map thicker.
@@ -277,7 +273,6 @@ class PathPlanner(Node):
         return c_map
     
     def a_star(self, mapdata: OccupancyGrid, start: Tuple[int, int], goal: Tuple[int, int]) -> List[Tuple[int, int]]:
-        ### REQUIRED CREDIT
         self.loginfo("Executing A* from (%d,%d) to (%d,%d)" % (start[0], start[1], goal[0], goal[1]))
 
         frontier = PriorityQueue()
@@ -347,8 +342,7 @@ class PathPlanner(Node):
 
         return path # Return the robot's path, in grid coordinates
 
-    # ---------- Plan the Path
-
+    # ---------- Plan the Path ----------------
     def plan_path(self, request, response):
         self.loginfo(f"Start: ({request.start.pose.position.x}, {request.start.pose.position.y}, Goal: ({request.goal.pose.position.x}, {request.goal.pose.position.y})")
         
@@ -389,7 +383,6 @@ class PathPlanner(Node):
         :param path [[(x,y)]] The path as a list of tuples (grid coordinates)
         :return     [[(x,y)]] The optimized path as a list of tuples (grid coordinates)
         """
-        #self.loginfo("Optimizing path")
 
         for i in range(len(path) - 3, -1, -1): # have to move backwards to avoid IndexError
         # define the current, next and next + 1 point

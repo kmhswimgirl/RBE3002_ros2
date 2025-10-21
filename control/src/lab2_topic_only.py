@@ -28,7 +28,9 @@ class Controller(Node):
         self.rate = self.create_rate(30) # Hz
 
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.update_odometry, 10, callback_group=self.cb_group)
-        self.get_test_path = self.create_subscription(Path,'/path_generator', self.handle_path, 10, callback_group=self.cb_group)
+
+        # self.get_test_path = self.create_subscription(Path,'/path_generator', self.handle_path, 10, callback_group=self.cb_group)
+        self.get_path_from_planner = self.create_subscription(Path, '/nav_path', self.handle_path, 10, callback_group=self.cb_group)
 
         self.cmd_vel_pub = self.create_publisher(TwistStamped, '/cmd_vel', 10)
 
