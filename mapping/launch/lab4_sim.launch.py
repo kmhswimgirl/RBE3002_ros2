@@ -17,8 +17,6 @@ def generate_launch_description():
     rviz_config_file = os.path.join(get_package_share_directory('mapping'), 'rviz', 'lab4_slam.rviz')
     map_dir = os.path.join(this_dir, 'maps') 
 
-    lidar_test_field = os.path.join(get_package_share_directory('pushback_sim'), 'launch')
-
     # variables
     use_sim_time = LaunchConfiguration('use_sim_time', default='True')
     slam = LaunchConfiguration('slam', default='True')
@@ -40,12 +38,6 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(sim_pkg_launch,'world_test.launch.py')
         )
-    )
-
-    lidar_test = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(lidar_test_field,'world_select.launch.py')
-        ), launch_arguments={'world': 'lidar_test'}.items()
     )
     
     # robot state publisher
@@ -100,6 +92,14 @@ def generate_launch_description():
         output='screen'
     )
 
+    # frontier node
+    frontier = Node(
+        package='mapping',
+        executable='frontiers.py',
+        name='frontier_debug',
+        output='screen'
+    )
+
     # laser filter for SLAM
     laser_filter = Node(
         package="laser_filters",
@@ -115,11 +115,11 @@ def generate_launch_description():
         params,
         sim_time,
         small_field_launch,
-        # lidar_test,
         static_tf,
         robot_state_publisher_cmd,
         spawn_turtlebot_cmd,
         laser_filter,
         slam_bringup,
+        frontier,
         rviz2
     ])

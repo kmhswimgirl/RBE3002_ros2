@@ -14,15 +14,18 @@ find_package(std_msgs REQUIRED)
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)55
 
-install(PROGRAMS
-  src/frontiers.py # my lab 3 node
-  DESTINATION lib/mapping
-)
-
 install(DIRECTORY
   rviz maps launch config
   DESTINATION share/${PROJECT_NAME}/
 )
+
+install(PROGRAMS
+  src/frontiers.py # my lab 4 node
+  DESTINATION lib/mapping
+)
+
+# hopefully this installs the pathing functions I need!
+ament_python_install_package(pathing)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
