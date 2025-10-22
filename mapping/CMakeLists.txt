@@ -24,6 +24,9 @@ install(PROGRAMS
   DESTINATION lib/mapping
 )
 
+# hopefully this installs the pathing functions I need!
+ament_python_install_package(pathing)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
