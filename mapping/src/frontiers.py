@@ -12,14 +12,19 @@ from rclpy.node import Node
 class Frontiers(Node):
     def __init__(self):
         super().__init__('frontiers')
+        self.loginfo = self.get_logger().info
 
-        # QoS config for c-space?
+        # frontier / centroid tuning
+        self.frontier_threshold = 10
+        self.min_centroid_space = 10
+
         qos = QoSProfile(depth=100)
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
 
+    
+
         # map handling
         self.map = self.create_subscription(OccupancyGrid, '/map', self.map_callback, qos)
-        self.mapdata: OccupancyGrid = None
 
         # publish the calculated nav_goal
         self.nav_goal = self.create_publisher(PoseStamped, '/nav_goal', qos) # this becomes the goal in control
@@ -30,10 +35,10 @@ class Frontiers(Node):
 
     def map_callback(self, msg: OccupancyGrid): # maybe working function to use whenever the map gets changes (or when you re call the plan_path service)
         """
-        Update the whenever it changes
+        Update the whenever /map recieves a new message
         """
         self.mapdata = msg
-        self.publish_to_rviz()
+        self.navigation_update() # update the navigation situation (update potential nav goals)
 
     def extract_frontier_seeds(self, mapdata: OccupancyGrid) -> List[Tuple[int,int]]:
         seeds = []
@@ -65,10 +70,22 @@ class Frontiers(Node):
                     if q in seed_set and q not in visited:
                         stack.append(q)
             clusters.append(comp)
-        
         return clusters
     
-    def publish_to_rviz(self):
+    def filter_frontiers(self, frontiers: List[List[Tuple[int,int]]]):
+        new_frontiers = []
+        for cluster in frontiers:
+            frontier_length = Frontiers.frontier_length(cluster)
+            length_2 = len(cluster)
+            if length_2 >= self.frontier_threshold:
+                new_frontiers.append(cluster)
+        self.loginfo(f'x_coord:{cluster[0][0]} y_coord:{cluster[0][1]} | # of gc:{len(cluster)} | length:{frontier_length}')
+        return new_frontiers
+                
+    def navigation_update(self):
+        '''
+        "Callback" function that is referenced in map_callback()
+        '''
         seeds = self.extract_frontier_seeds(self.mapdata)
 
         fc = GridCells(
@@ -79,12 +96,20 @@ class Frontiers(Node):
         )
         fc.header.frame_id = 'map'
 
-        self.frontiers_rviz.publish(fc)
-
+        # confirming the number of clusters pre and post filtering 
         clusters = self.cluster_frontiers(seeds)
+        num_of_clusters = len(clusters)
+        self.loginfo(f'not filtered: {num_of_clusters}')
+
+        cleaned_clusters = self.filter_frontiers(clusters)
+        num_clusters_post = len(cleaned_clusters)
+        self.loginfo(f'filtered: {num_clusters_post}')
+
         ma = MarkerArray()
-        for i, cluster in enumerate(clusters):
+        for i, cluster in enumerate(cleaned_clusters):
             cx, cy = self.calc_centroid(cluster)
+            cl_length = self.frontier_length(cluster)
+            self.loginfo(f'Cluster #{i}| x:{cx} y:{cy} | # of gc:{len(cluster)} | length:{cl_length}') # mor debug
             m = Marker(
                 header=self.mapdata.header,
                 ns='frontier_centroids',
@@ -95,11 +120,12 @@ class Frontiers(Node):
             m.pose.position.x = cx*self.mapdata.info.resolution + self.mapdata.info.origin.position.x
             m.pose.position.y = cy*self.mapdata.info.resolution + self.mapdata.info.origin.position.y
             m.pose.position.z = 0.1
-            m.scale.x = m.scale.y = m.scale.z = 0.2
+            m.scale.x = m.scale.y = m.scale.z = 0.08
             m.color.r = 1.0; m.color.a = 0.8
             ma.markers.append(m)
-        self.centroids.publish(ma)
 
+        self.frontiers_rviz.publish(fc)
+        self.centroids.publish(ma)
         
     @staticmethod
     def calc_centroid (cluster: List[Tuple[int,int]]) -> Tuple[float,float]:
@@ -113,9 +139,8 @@ class Frontiers(Node):
         a, b = cluster[0], cluster[-1]
         length = math.hypot(b[0]-a[0], b[1]-a[1])
         return length
-    
 
-## ---------- Remove later when i figure out how to import classes ---------- ##
+## ---------- Remove later when i figure out how to import classes lol---------- ##
     @staticmethod
     def grid_to_index(mapdata: OccupancyGrid, p: Tuple[int, int]) -> int:
         """
