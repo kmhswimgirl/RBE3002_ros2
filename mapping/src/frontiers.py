@@ -8,6 +8,8 @@ from geometry_msgs.msg import PoseStamped, Point
 from rclpy.qos import QoSProfile, DurabilityPolicy
 from visualization_msgs.msg import Marker, MarkerArray
 from rclpy.node import Node
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
 
 class Frontiers(Node):
     def __init__(self):
@@ -15,16 +17,23 @@ class Frontiers(Node):
         self.loginfo = self.get_logger().info
 
         # frontier / centroid tuning
-        self.frontier_threshold = 10
-        self.min_centroid_space = 10
+        self.frontier_threshold = 12
 
-        qos = QoSProfile(depth=100)
+        # quality of service stuff
+        qos = QoSProfile(depth=100) # practically queue size lol
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
 
-    
+        self.mapdata = None
+
+        # need map and nav update
+        # --> CB group, same as L2
+        self.map_timer = ReentrantCallbackGroup()
 
         # map handling
-        self.map = self.create_subscription(OccupancyGrid, '/map', self.map_callback, qos)
+        self.map = self.create_subscription(OccupancyGrid, '/map', self.map_callback, qos, callback_group=self.map_timer)
+
+        # timer calls update nav points, which recalculates the centroids + frontiers
+        self.update_nav_points = self.create_timer(1.0, self.navigation_update, callback_group=self.map_timer)
 
         # publish the calculated nav_goal
         self.nav_goal = self.create_publisher(PoseStamped, '/nav_goal', qos) # this becomes the goal in control
@@ -38,9 +47,10 @@ class Frontiers(Node):
         Update the whenever /map recieves a new message
         """
         self.mapdata = msg
-        self.navigation_update() # update the navigation situation (update potential nav goals)
+        self.loginfo('map updated!')
 
     def extract_frontier_seeds(self, mapdata: OccupancyGrid) -> List[Tuple[int,int]]:
+        ''' return all cells that border free and unknown space'''
         seeds = []
         w, h = mapdata.info.width, mapdata.info.height
         for y in range(h):
@@ -54,6 +64,7 @@ class Frontiers(Node):
         return seeds
     
     def cluster_frontiers(self, seeds: List[Tuple[int,int]]) -> List[List[Tuple[int,int]]]:
+        '''figure out which seeds/ frontier cells are next to each other'''
         visited, clusters = set(), []
         seed_set = set(seeds)
         for s in seeds:
@@ -73,19 +84,24 @@ class Frontiers(Node):
         return clusters
     
     def filter_frontiers(self, frontiers: List[List[Tuple[int,int]]]):
+        '''remove clusters that are either SLAM mistakes or are too small to be considered a viable nav goal'''
         new_frontiers = []
         for cluster in frontiers:
-            frontier_length = Frontiers.frontier_length(cluster)
-            length_2 = len(cluster)
-            if length_2 >= self.frontier_threshold:
+             # frontier_length = Frontiers.frontier_length(cluster) something off about the math...
+            num_gc = len(cluster)
+            if num_gc >= self.frontier_threshold: # if the number of
                 new_frontiers.append(cluster)
-        self.loginfo(f'x_coord:{cluster[0][0]} y_coord:{cluster[0][1]} | # of gc:{len(cluster)} | length:{frontier_length}')
         return new_frontiers
                 
     def navigation_update(self):
         '''
-        "Callback" function that is referenced in map_callback()
+        called on a timer. not sure what update rate would be good...
         '''
+        if self.mapdata is None:
+            self.loginfo('No Map!')
+            return
+        
+        # get cells that are next to freespace & unknown
         seeds = self.extract_frontier_seeds(self.mapdata)
 
         fc = GridCells(
@@ -106,10 +122,10 @@ class Frontiers(Node):
         self.loginfo(f'filtered: {num_clusters_post}')
 
         ma = MarkerArray()
-        for i, cluster in enumerate(cleaned_clusters):
-            cx, cy = self.calc_centroid(cluster)
-            cl_length = self.frontier_length(cluster)
-            self.loginfo(f'Cluster #{i}| x:{cx} y:{cy} | # of gc:{len(cluster)} | length:{cl_length}') # mor debug
+        for i, clusters in enumerate(cleaned_clusters):
+            cx, cy = self.calc_centroid(clusters)
+            cl_length = self.frontier_length(clusters)
+            self.loginfo(f'Cluster #{i}| ({cx},{cy}) | # of gc:{len(clusters)} | length:{cl_length}') # debug
             m = Marker(
                 header=self.mapdata.header,
                 ns='frontier_centroids',
@@ -117,6 +133,7 @@ class Frontiers(Node):
                 type=Marker.SPHERE,
                 action=Marker.ADD
             )
+
             m.pose.position.x = cx*self.mapdata.info.resolution + self.mapdata.info.origin.position.x
             m.pose.position.y = cy*self.mapdata.info.resolution + self.mapdata.info.origin.position.y
             m.pose.position.z = 0.1
@@ -137,7 +154,9 @@ class Frontiers(Node):
     @staticmethod
     def frontier_length(cluster: List[Tuple[int,int]]) -> float:
         a, b = cluster[0], cluster[-1]
-        length = math.hypot(b[0]-a[0], b[1]-a[1])
+        v1 = abs(b[0]-a[0])
+        v2 = abs(b[1]-a[1])
+        length = math.hypot(v1, v2)
         return length
 
 ## ---------- Remove later when i figure out how to import classes lol---------- ##

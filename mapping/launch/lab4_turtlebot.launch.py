@@ -13,12 +13,11 @@ def generate_launch_description():
     # file paths
     this_dir = os.path.join(get_package_share_directory('mapping'))
     tb3_gz_pkg = os.path.join(get_package_share_directory('turtlebot3_gazebo'), 'launch')
-    sim_pkg_launch = os.path.join(get_package_share_directory('simulation'), 'launch')
     rviz_config_file = os.path.join(get_package_share_directory('mapping'), 'rviz', 'lab4_slam.rviz')
     map_dir = os.path.join(this_dir, 'maps') 
 
     # variables
-    use_sim_time = LaunchConfiguration('use_sim_time', default='false')
+    use_sim_time = LaunchConfiguration('use_sim_time', default='false') # false for real robot
     slam = LaunchConfiguration('slam', default='True')
     config_file =  LaunchConfiguration('config_file',default=os.path.join(get_package_share_directory('mapping'), 'config', 'tb3_nav.yaml'))
 
@@ -32,13 +31,6 @@ def generate_launch_description():
             'use_sim_time',
             default_value=use_sim_time,
             description='Use simulation (Gazebo) clock if true')
-
-    # simulation package launch file (launches gz_sim)
-    small_field_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(sim_pkg_launch,'world_test.launch.py')
-        )
-    )
     
     # robot state publisher
     robot_state_publisher_cmd = IncludeLaunchDescription(
@@ -46,18 +38,6 @@ def generate_launch_description():
             os.path.join(tb3_gz_pkg, 'robot_state_publisher.launch.py')
         ),
         launch_arguments={'use_sim_time': 'false'}.items()
-    )
-
-    # spawn in turtlebot
-    spawn_turtlebot_cmd = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(tb3_gz_pkg, 'spawn_turtlebot3.launch.py')
-        ),
-        launch_arguments={
-            'x_pose': '0.06',
-            'y_pose': '0.0',
-            'use_sim_time': 'false'
-        }.items()
     )
 
     # map to odom static transform
@@ -114,10 +94,8 @@ def generate_launch_description():
     return LaunchDescription([
         params,
         sim_time,
-        # small_field_launch,
         static_tf,
         robot_state_publisher_cmd,
-        # spawn_turtlebot_cmd,
         laser_filter,
         slam_bringup,
         frontier,
