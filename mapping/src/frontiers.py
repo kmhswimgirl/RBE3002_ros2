@@ -1,13 +1,15 @@
+#!/usr/bin/env python3
+
 import rclpy
 import math
 from typing import List, Tuple
 from nav_msgs.msg import OccupancyGrid, GridCells
-from geometry_msgs.msg import PoseStamped
-from pathing.src.path_planner import PathPlanner # import specifically for A star functionality
+from geometry_msgs.msg import PoseStamped, Point
 from rclpy.qos import QoSProfile, DurabilityPolicy
 from visualization_msgs.msg import Marker, MarkerArray
+from rclpy.node import Node
 
-class Frontiers:
+class Frontiers(Node):
     def __init__(self):
         super().__init__('frontiers')
 
@@ -16,7 +18,7 @@ class Frontiers:
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
 
         # map handling
-        self.map = self.create_subscription(OccupancyGrid, '/map', self.map_callback)
+        self.map = self.create_subscription(OccupancyGrid, '/map', self.map_callback, qos)
         self.mapdata: OccupancyGrid = None
 
         # publish the calculated nav_goal
@@ -24,6 +26,7 @@ class Frontiers:
 
         # rviz debug
         self.frontiers_rviz = self.create_publisher(GridCells, '/frontier_cells', qos)
+        self.centroids = self.create_publisher(MarkerArray, '/centroids', qos)
 
     def map_callback(self, msg: OccupancyGrid): # maybe working function to use whenever the map gets changes (or when you re call the plan_path service)
         """
@@ -31,17 +34,16 @@ class Frontiers:
         """
         self.mapdata = msg
         self.publish_to_rviz()
-        self.loginfo("Map updated")
 
     def extract_frontier_seeds(self, mapdata: OccupancyGrid) -> List[Tuple[int,int]]:
         seeds = []
         w, h = mapdata.info.width, mapdata.info.height
         for y in range(h):
             for x in range(w):
-                if not PathPlanner.is_cell_walkable(mapdata, (x,y)): continue
+                if not Frontiers.is_cell_walkable(mapdata, (x,y)): continue
                 for dx, dy in [(-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)]:
                     nx, ny = x+dx, y+dy
-                    if 0 <= nx < w and 0 <= ny < h and mapdata.data[PathPlanner.grid_to_index(mapdata,(nx,ny))] == -1:
+                    if 0 <= nx < w and 0 <= ny < h and mapdata.data[Frontiers.grid_to_index(mapdata,(nx,ny))] == -1:
                         seeds.append((x,y))
                         break
         return seeds
@@ -73,16 +75,16 @@ class Frontiers:
             header= self.mapdata.header,
             cell_width= self.mapdata.info.resolution,
             cell_height= self.mapdata.info.resolution,
-            cells=[PathPlanner.grid_to_world(self.mapdata, s) for s in seeds]
+            cells=[Frontiers.grid_to_world(self.mapdata, s) for s in seeds]
         )
         fc.header.frame_id = 'map'
 
-        self.frontier_cells_pub.publish(fc)
+        self.frontiers_rviz.publish(fc)
 
         clusters = self.cluster_frontiers(seeds)
         ma = MarkerArray()
         for i, cluster in enumerate(clusters):
-            cx, cy = self._calc_centroid(cluster)
+            cx, cy = self.calc_centroid(cluster)
             m = Marker(
                 header=self.mapdata.header,
                 ns='frontier_centroids',
@@ -96,7 +98,7 @@ class Frontiers:
             m.scale.x = m.scale.y = m.scale.z = 0.2
             m.color.r = 1.0; m.color.a = 0.8
             ma.markers.append(m)
-        self.centroid_pub.publish(ma)
+        self.centroids.publish(ma)
 
         
     @staticmethod
@@ -111,3 +113,118 @@ class Frontiers:
         a, b = cluster[0], cluster[-1]
         length = math.hypot(b[0]-a[0], b[1]-a[1])
         return length
+    
+
+## ---------- Remove later when i figure out how to import classes ---------- ##
+    @staticmethod
+    def grid_to_index(mapdata: OccupancyGrid, p: Tuple[int, int]) -> int:
+        """
+        Returns the index corresponding to the given (x,y) coordinates in the occupancy grid.
+        :param p [(int, int)] The cell coordinate.
+        :return  [int] The index.
+        """
+        # variables
+        arrayCols = mapdata.info.width
+        x, y = p[0], p[1]
+
+        # logic
+        if y == 0:
+            index = x
+        else: 
+            index = arrayCols*y + x
+
+        # output
+        return index
+    
+    @staticmethod
+    def euclidean_distance(p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
+        """
+        Calculates the Euclidean distance between two points.
+        :param p1 [(float, float)] first point.
+        :param p2 [(float, float)] second point.
+        :return   [float]          distance.
+        """
+        distance = math.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
+        return distance
+    
+    @staticmethod
+    def grid_to_world(mapdata: OccupancyGrid, p: Tuple[int, int]) -> Point:
+        """
+        Transforms a cell coordinate in the occupancy grid into a world coordinate.
+        :param mapdata [OccupancyGrid] The map information.
+        :param p [(int, int)] The cell coordinate.
+        :return        [Point]         The position in the world.
+        """
+        resolution = mapdata.info.resolution # note: in meters
+
+        realOriginX = mapdata.info.origin.position.x
+        realOriginY = mapdata.info.origin.position.y
+
+        realWorldX = p[0]*resolution + realOriginX + resolution/2
+        realWorldY = p[1]*resolution + realOriginY + resolution/2
+
+        # since ros2 is annoying, have to set each parameter individually 
+        pt = Point()
+        pt.x = realWorldX
+        pt.y = realWorldY
+        pt.z =  0.0
+
+        return pt
+    
+    @staticmethod
+    def world_to_grid(mapdata: OccupancyGrid, wp: Point) -> Tuple[int, int]:
+        """
+        Transforms a world coordinate into a cell coordinate in the occupancy grid.
+        :param mapdata [OccupancyGrid] The map information.
+        :param wp      [Point]         The world coordinate.
+        :return        [(int,int)]     The cell position as a tuple.
+        """
+        resolution = mapdata.info.resolution
+
+        realOriginX = mapdata.info.origin.position.x
+        realOriginY = mapdata.info.origin.position.y
+
+        cellX = int((wp.x - realOriginX)/resolution)
+        cellY = int((wp.y - realOriginY)/resolution)
+
+        return (cellX, cellY)
+    
+    @staticmethod
+    def is_cell_walkable(mapdata:OccupancyGrid, p: Tuple[int, int]) -> bool:
+        """
+        A cell is walkable if all of these conditions are true:
+        1. It is within the boundaries of the grid;
+        2. It is free (not unknown, not occupied by an obstacle)
+        :param mapdata [OccupancyGrid] The map information.
+        :param p       [(int, int)]    The coordinate in the grid.
+        :return        [bool]          True if the cell is walkable, False otherwise
+        """
+        arrayRows = mapdata.info.height
+        arrayCols = mapdata.info.width
+        coord = (p[0],p[1])
+
+        # FIXED BOUNDS CHECK
+        if ((p[0] >= 0 and p[0] < arrayCols) and (p[1] >= 0 and p[1] < arrayRows)):
+            index = Frontiers.grid_to_index(mapdata, coord)
+            occVal = mapdata.data[index]
+            freeThreshold = 0.196
+            if (occVal < freeThreshold and occVal !=-1): 
+                return True
+            else:
+                return False
+        else:
+            return False
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = Frontiers()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
