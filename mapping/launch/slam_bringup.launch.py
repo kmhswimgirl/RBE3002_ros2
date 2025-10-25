@@ -7,7 +7,7 @@ from launch.actions import (
     DeclareLaunchArgument,
     GroupAction,
     IncludeLaunchDescription,
-    SetEnvironmentVariable,
+    SetEnvironmentVariable
 )
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -27,8 +27,6 @@ def generate_launch_description():
     namespace = LaunchConfiguration('namespace')
     use_sim_time = LaunchConfiguration('use_sim_time')
     params_file = LaunchConfiguration('params_file')
-
-
 
     declare_use_sim_time_cmd = DeclareLaunchArgument(
         'use_sim_time',
@@ -62,7 +60,6 @@ def generate_launch_description():
     ld = LaunchDescription()
 
     # Set environment variables
-
     ld.add_action(declare_use_sim_time_cmd)
     ld.add_action(declare_params_file_cmd)
 

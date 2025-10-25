@@ -53,3 +53,6 @@ CATKIN_IGNORE
 # VS Code Crap
 .vscode/
 log/
+
+# pycache
+**/__pycache__

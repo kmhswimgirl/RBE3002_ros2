@@ -24,12 +24,13 @@ class Controller(Node):
 
         self.odom_ready = False
 
-        cb_group = ReentrantCallbackGroup() # allow for multiple things at once
+        self.cb_group = ReentrantCallbackGroup() # allow for multiple things at once
 
         self.rate = self.create_rate(30) # Hz
 
-        self.sub_odom = self.create_subscription(Odometry, '/odom', self.update_odometry, 10, callback_group=cb_group)
-        self.sub_goal = self.create_subscription(PoseStamped, '/move_base_simple/goal', self.get_path_from_planner, 10, callback_group=cb_group)
+        self.sub_odom = self.create_subscription(Odometry, '/odom', self.update_odometry, 10, callback_group=self.cb_group)
+        self.rviz_goal = self.create_subscription(PoseStamped, '/move_base_simple/goal', self.get_path_from_planner, 10, callback_group=self.cb_group)
+        self.sub_goal = self.create_subscription(PoseStamped, '/nav_goal', self.get_path_from_planner, 10, callback_group=self.cb_group)
 
         self.cmd_vel_pub = self.create_publisher(TwistStamped, '/cmd_vel', 10)
 
@@ -127,6 +128,8 @@ class Controller(Node):
         if not self.odom_ready:
             self.get_logger().warn("No odometry data yet!")
             return
+        
+        self.get_logger().info('service callback called!')
 
         # start pose from current odom
         start = PoseStamped()

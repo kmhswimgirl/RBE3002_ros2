@@ -14,6 +14,7 @@ def generate_launch_description():
     this_dir = os.path.join(get_package_share_directory('mapping'))
     tb3_gz_pkg = os.path.join(get_package_share_directory('turtlebot3_gazebo'), 'launch')
     rviz_config_file = os.path.join(get_package_share_directory('mapping'), 'rviz', 'lab4_slam.rviz')
+    sim_pkg_launch = os.path.join(get_package_share_directory('simulation'), 'launch')
     map_dir = os.path.join(this_dir, 'maps') 
 
     # variables
@@ -63,6 +64,12 @@ def generate_launch_description():
             'slam': slam}.items()
     )
 
+    controller = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(sim_pkg_launch, 'joystick.launch.py'))
+        
+    )
+
     # rviz2
     rviz2 = Node(
         package='rviz2',
@@ -99,5 +106,6 @@ def generate_launch_description():
         laser_filter,
         slam_bringup,
         frontier,
+        # controller,
         rviz2
     ])
