@@ -60,6 +60,11 @@ def generate_launch_description():
         }.items()
     )
 
+    controller = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(sim_pkg_launch, 'joystick.launch.py'))
+    )
+
     # map to odom static transform
     static_tf = Node(
         package='tf2_ros',
@@ -119,6 +124,7 @@ def generate_launch_description():
         robot_state_publisher_cmd,
         spawn_turtlebot_cmd,
         laser_filter,
+        controller,
         slam_bringup,
         frontier,
         rviz2
