@@ -4,12 +4,12 @@ import rclpy
 import math
 from typing import List, Tuple
 from nav_msgs.msg import OccupancyGrid, GridCells
-from geometry_msgs.msg import PoseStamped, Point
+from geometry_msgs.msg import PoseStamped
 from rclpy.qos import QoSProfile, DurabilityPolicy
 from visualization_msgs.msg import Marker, MarkerArray
 from rclpy.node import Node
 from rclpy.callback_groups import ReentrantCallbackGroup
-from rclpy.executors import MultiThreadedExecutor
+from map_methods import MapMethods
 
 class Frontiers(Node):
     def __init__(self):
@@ -24,6 +24,7 @@ class Frontiers(Node):
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
 
         self.mapdata = None
+        self.goal_sent = False
 
         # need map and nav update
         # --> CB group, same as L2
@@ -47,7 +48,6 @@ class Frontiers(Node):
         Update the whenever /map recieves a new message
         """
         self.mapdata = msg
-        self.loginfo('map updated!')
 
     def extract_frontier_seeds(self, mapdata: OccupancyGrid) -> List[Tuple[int,int]]:
         ''' return all cells that border free and unknown space'''
@@ -55,10 +55,10 @@ class Frontiers(Node):
         w, h = mapdata.info.width, mapdata.info.height
         for y in range(h):
             for x in range(w):
-                if not Frontiers.is_cell_walkable(mapdata, (x,y)): continue
+                if not MapMethods.is_cell_walkable(mapdata, (x,y)): continue
                 for dx, dy in [(-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)]:
                     nx, ny = x+dx, y+dy
-                    if 0 <= nx < w and 0 <= ny < h and mapdata.data[Frontiers.grid_to_index(mapdata,(nx,ny))] == -1:
+                    if 0 <= nx < w and 0 <= ny < h and mapdata.data[MapMethods.grid_to_index(mapdata,(nx,ny))] == -1:
                         seeds.append((x,y))
                         break
         return seeds
@@ -89,18 +89,27 @@ class Frontiers(Node):
         for cluster in frontiers:
              # frontier_length = Frontiers.frontier_length(cluster) something off about the math...
             num_gc = len(cluster)
-            if num_gc >= self.frontier_threshold: # if the number of
+            if num_gc >= self.frontier_threshold:
                 new_frontiers.append(cluster)
         return new_frontiers
-                
+    
+    def get_largest_frontier(self, frontiers:List[List[Tuple[int,int]]]):
+        if not frontiers:
+            return None
+        sizes = [len(cluster) for cluster in frontiers]
+        largest_i = sizes.index(max(sizes))
+        largest_cluster = frontiers[largest_i]
+        cx, cy = self.calc_centroid(largest_cluster)
+        # return centroid in grid-cell coordinates
+        self.loginfo(f'[DEBUG]: get_largest_frontier centroid = ({cx:.3f}, {cy:.3f})')
+        return (cx, cy)
+    
     def navigation_update(self):
-        '''
-        called on a timer. not sure what update rate would be good...
-        '''
+
         if self.mapdata is None:
             self.loginfo('No Map!')
             return
-        
+
         # get cells that are next to freespace & unknown
         seeds = self.extract_frontier_seeds(self.mapdata)
 
@@ -108,8 +117,9 @@ class Frontiers(Node):
             header= self.mapdata.header,
             cell_width= self.mapdata.info.resolution,
             cell_height= self.mapdata.info.resolution,
-            cells=[Frontiers.grid_to_world(self.mapdata, s) for s in seeds]
+            cells=[MapMethods.grid_to_world(self.mapdata, s) for s in seeds]
         )
+
         fc.header.frame_id = 'map'
 
         # confirming the number of clusters pre and post filtering 
@@ -125,7 +135,9 @@ class Frontiers(Node):
         for i, clusters in enumerate(cleaned_clusters):
             cx, cy = self.calc_centroid(clusters)
             cl_length = self.frontier_length(clusters)
+  
             self.loginfo(f'Cluster #{i}| ({cx},{cy}) | # of gc:{len(clusters)} | length:{cl_length}') # debug
+
             m = Marker(
                 header=self.mapdata.header,
                 ns='frontier_centroids',
@@ -139,11 +151,39 @@ class Frontiers(Node):
             m.pose.position.z = 0.1
             m.scale.x = m.scale.y = m.scale.z = 0.08
             m.color.r = 1.0; m.color.a = 0.8
+            m.lifetime.sec = 8
             ma.markers.append(m)
 
+        largest = self.get_largest_frontier(cleaned_clusters)
+
+        if largest is None:
+            self.loginfo('NAV GOAL: no frontiers found')
+        else:
+            gx, gy = largest
+            # convert grid centroid -> world meters
+            res = self.mapdata.info.resolution
+            origin = self.mapdata.info.origin
+            world_x = gx * res + origin.position.x
+            world_y = gy * res + origin.position.y
+
+            pose = self.convert_to_pose((1.0, 1.0))
+            self.get_logger().info(f'NAV GOAL (world): ({world_x:.3f}, {world_y:.3f})')
+            if not self.goal_sent:
+                self.nav_goal.publish(pose)
+                self.goal_sent = True
+        
         self.frontiers_rviz.publish(fc)
         self.centroids.publish(ma)
-        
+
+    def convert_to_pose(self, input_coord: Tuple):
+        pose_message = PoseStamped()
+        pose_message.header.stamp = self.get_clock().now().to_msg()
+        pose_message.header.frame_id = 'map'
+        pose_message.pose.position.x = float(input_coord[0])
+        pose_message.pose.position.y = float(input_coord[1])
+
+        return pose_message
+
     @staticmethod
     def calc_centroid (cluster: List[Tuple[int,int]]) -> Tuple[float,float]:
         cx = sum(x for x,_ in cluster)/len(cluster)
@@ -158,106 +198,6 @@ class Frontiers(Node):
         v2 = abs(b[1]-a[1])
         length = math.hypot(v1, v2)
         return length
-
-## ---------- Remove later when i figure out how to import classes lol---------- ##
-    @staticmethod
-    def grid_to_index(mapdata: OccupancyGrid, p: Tuple[int, int]) -> int:
-        """
-        Returns the index corresponding to the given (x,y) coordinates in the occupancy grid.
-        :param p [(int, int)] The cell coordinate.
-        :return  [int] The index.
-        """
-        # variables
-        arrayCols = mapdata.info.width
-        x, y = p[0], p[1]
-
-        # logic
-        if y == 0:
-            index = x
-        else: 
-            index = arrayCols*y + x
-
-        # output
-        return index
-    
-    @staticmethod
-    def euclidean_distance(p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
-        """
-        Calculates the Euclidean distance between two points.
-        :param p1 [(float, float)] first point.
-        :param p2 [(float, float)] second point.
-        :return   [float]          distance.
-        """
-        distance = math.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
-        return distance
-    
-    @staticmethod
-    def grid_to_world(mapdata: OccupancyGrid, p: Tuple[int, int]) -> Point:
-        """
-        Transforms a cell coordinate in the occupancy grid into a world coordinate.
-        :param mapdata [OccupancyGrid] The map information.
-        :param p [(int, int)] The cell coordinate.
-        :return        [Point]         The position in the world.
-        """
-        resolution = mapdata.info.resolution # note: in meters
-
-        realOriginX = mapdata.info.origin.position.x
-        realOriginY = mapdata.info.origin.position.y
-
-        realWorldX = p[0]*resolution + realOriginX + resolution/2
-        realWorldY = p[1]*resolution + realOriginY + resolution/2
-
-        # since ros2 is annoying, have to set each parameter individually 
-        pt = Point()
-        pt.x = realWorldX
-        pt.y = realWorldY
-        pt.z =  0.0
-
-        return pt
-    
-    @staticmethod
-    def world_to_grid(mapdata: OccupancyGrid, wp: Point) -> Tuple[int, int]:
-        """
-        Transforms a world coordinate into a cell coordinate in the occupancy grid.
-        :param mapdata [OccupancyGrid] The map information.
-        :param wp      [Point]         The world coordinate.
-        :return        [(int,int)]     The cell position as a tuple.
-        """
-        resolution = mapdata.info.resolution
-
-        realOriginX = mapdata.info.origin.position.x
-        realOriginY = mapdata.info.origin.position.y
-
-        cellX = int((wp.x - realOriginX)/resolution)
-        cellY = int((wp.y - realOriginY)/resolution)
-
-        return (cellX, cellY)
-    
-    @staticmethod
-    def is_cell_walkable(mapdata:OccupancyGrid, p: Tuple[int, int]) -> bool:
-        """
-        A cell is walkable if all of these conditions are true:
-        1. It is within the boundaries of the grid;
-        2. It is free (not unknown, not occupied by an obstacle)
-        :param mapdata [OccupancyGrid] The map information.
-        :param p       [(int, int)]    The coordinate in the grid.
-        :return        [bool]          True if the cell is walkable, False otherwise
-        """
-        arrayRows = mapdata.info.height
-        arrayCols = mapdata.info.width
-        coord = (p[0],p[1])
-
-        # FIXED BOUNDS CHECK
-        if ((p[0] >= 0 and p[0] < arrayCols) and (p[1] >= 0 and p[1] < arrayRows)):
-            index = Frontiers.grid_to_index(mapdata, coord)
-            occVal = mapdata.data[index]
-            freeThreshold = 0.196
-            if (occVal < freeThreshold and occVal !=-1): 
-                return True
-            else:
-                return False
-        else:
-            return False
 
 def main(args=None):
     rclpy.init(args=args)

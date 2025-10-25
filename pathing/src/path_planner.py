@@ -34,14 +34,13 @@ class PathPlanner(Node):
         
 
     # ----------------------- Map Stuff ---------------------------------
-
     def map_callback(self, msg: OccupancyGrid): # maybe working function to use whenever the map gets changes (or when you re call the plan_path service)
         """
         Update the whenever it changes
         """
         self.cached_map = msg
+        # self.loginfo(f'map dimensions: {self.cached_map.info.width} x {self.cached_map.info.height} @ {self.cached_map.info.resolution} ')
         self.map_ready = True
-        self.loginfo("Map updated")
 
     # --------------------- easy stuff, should not need any ros2 translating
     @staticmethod
@@ -356,7 +355,7 @@ class PathPlanner(Node):
         
         mapdata = self.cached_map 
 
-        cspacedata = self.calc_cspace(mapdata, 1) # calc C space
+        cspacedata = self.calc_cspace(mapdata, 5) # calc C space
         start = PathPlanner.world_to_grid(mapdata, request.start.pose.position)
         goal  = PathPlanner.world_to_grid(mapdata, request.goal.pose.position)
         self.loginfo(f"Grid start: {start}, Grid goal: {goal}") # confirm start/goal pos
