@@ -1,0 +1,6 @@
+nav_msgs/Path path
+---
+geometry_msgs/PoseStamped final_position
+---
+geometry_msgs/PoseStamped current_location
+std_msgs/Float32 percent

@@ -14,9 +14,8 @@ find_package(std_msgs REQUIRED)
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
-
 install(DIRECTORY
-  launch rviz src
+  launch rviz src action
   DESTINATION share/${PROJECT_NAME}/
 )
 
