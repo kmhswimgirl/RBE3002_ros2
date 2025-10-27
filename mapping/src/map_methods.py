@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import math
-from typing import Tuple
+from typing import Tuple, List
 from nav_msgs.msg import OccupancyGrid
 from geometry_msgs.msg import Point
 from rclpy.node import Node
@@ -104,3 +104,47 @@ class MapMethods(Node):
                     return False
             else:
                 return False
+            
+        @staticmethod
+        def neighbors_of_8(mapdata: OccupancyGrid, p: Tuple[int, int]) -> List[Tuple[int, int]]:
+            """
+            Returns the walkable 8-neighbors cells of (x,y) in the occupancy grid.
+            :param mapdata [OccupancyGrid] The map information.
+            :param p       [(int, int)]    The coordinate in the grid.
+            :return        [[(int,int)]]   A list of walkable 8-neighbors.
+            """
+            
+            x,y = p[0], p[1]
+
+            neighborCells8 = []
+
+            if MapMethods.is_cell_walkable(mapdata, (x+1, y)):
+                neighborCells8.append((x+1, y))
+            if MapMethods.is_cell_walkable(mapdata, (x-1, y)):
+                neighborCells8.append((x-1, y))
+            if MapMethods.is_cell_walkable(mapdata, (x, y+1)):
+                neighborCells8.append((x, y+1))
+            if MapMethods.is_cell_walkable(mapdata, (x, y-1)):
+                neighborCells8.append((x, y-1))
+            if MapMethods.is_cell_walkable(mapdata, (x+1, y+1)):
+                neighborCells8.append((x+1, y+1))
+            if MapMethods.is_cell_walkable(mapdata, (x+1, y-1)):
+                neighborCells8.append((x+1, y-1))
+            if MapMethods.is_cell_walkable(mapdata, (x-1, y+1)):
+                neighborCells8.append((x-1, y+1))
+            if MapMethods.is_cell_walkable(mapdata, (x-1, y-1)):
+                neighborCells8.append((x-1, y-1))
+
+            return neighborCells8
+        
+        @staticmethod
+        def expanded_neighbors8(p: Tuple[int, int], c_space: int):
+            x, y = p[0], p[1]
+            radius = c_space + 3
+            expanded_neighbors = []
+
+            for dx, dy in [(-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)]:
+                    dx, dy = dx * radius, dy * radius
+                    new_point = (x+dx, y+dy)
+                    expanded_neighbors.append(new_point)
+            return expanded_neighbors

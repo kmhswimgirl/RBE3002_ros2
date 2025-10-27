@@ -18,6 +18,7 @@ class Frontiers(Node):
 
         # frontier / centroid tuning
         self.frontier_threshold = 12
+        self.c_space = 3
 
         # quality of service stuff
         qos = QoSProfile(depth=100) # practically queue size lol
@@ -33,21 +34,33 @@ class Frontiers(Node):
         # map handling
         self.map = self.create_subscription(OccupancyGrid, '/map', self.map_callback, qos, callback_group=self.map_timer)
 
+        self.send_goal = self.create_timer(10.0, self.toggle_goal_send, callback_group=self.map_timer)
+
         # timer calls update nav points, which recalculates the centroids + frontiers
         self.update_nav_points = self.create_timer(1.0, self.navigation_update, callback_group=self.map_timer)
 
         # publish the calculated nav_goal
         self.nav_goal = self.create_publisher(PoseStamped, '/nav_goal', qos) # this becomes the goal in control
 
+        # self.c_cells = self.create_subscription(GridCells, '/path_planner/c_cpace', qos)
+
         # rviz debug
         self.frontiers_rviz = self.create_publisher(GridCells, '/frontier_cells', qos)
         self.centroids = self.create_publisher(MarkerArray, '/centroids', qos)
+        self.drive_points = self.create_publisher(MarkerArray, 'frontiers/drive_points', qos)
 
     def map_callback(self, msg: OccupancyGrid): # maybe working function to use whenever the map gets changes (or when you re call the plan_path service)
         """
         Update the whenever /map recieves a new message
         """
         self.mapdata = msg
+
+    def toggle_goal_send(self):
+        self.goal_sent = False
+
+    def confirm_c_space(self, cells:GridCells):
+        if len(cells) > 0:
+            self.c_space_ready = True
 
     def extract_frontier_seeds(self, mapdata: OccupancyGrid) -> List[Tuple[int,int]]:
         ''' return all cells that border free and unknown space'''
@@ -100,9 +113,22 @@ class Frontiers(Node):
         largest_i = sizes.index(max(sizes))
         largest_cluster = frontiers[largest_i]
         cx, cy = self.calc_centroid(largest_cluster)
-        # return centroid in grid-cell coordinates
-        self.loginfo(f'[DEBUG]: get_largest_frontier centroid = ({cx:.3f}, {cy:.3f})')
-        return (cx, cy)
+        cx, cy = int(cx), int(cy)
+
+        # return centroid in grid coordinates
+        self.loginfo(f'[DEBUG]: get_largest_frontier | centroid = ({cx}, {cy})')
+
+        # if not MapMethods.is_cell_walkable(self.mapdata, (cx,cy)):
+        # self.loginfo('[DEBUG]: get_largest_frontier | centroid not walkable')
+
+        exp_cells = self.drivable_coordinate(self.mapdata, (cx, cy))
+
+        self.loginfo(f'drivable coordinates??? {exp_cells}')
+
+        if exp_cells is None:
+            return
+        return exp_cells
+
     
     def navigation_update(self):
 
@@ -135,8 +161,10 @@ class Frontiers(Node):
         for i, clusters in enumerate(cleaned_clusters):
             cx, cy = self.calc_centroid(clusters)
             cl_length = self.frontier_length(clusters)
+
+            i_cx, i_cy = int(cx), int(cy)
   
-            self.loginfo(f'Cluster #{i}| ({cx},{cy}) | # of gc:{len(clusters)} | length:{cl_length}') # debug
+            self.loginfo(f'Cluster #{i}| ({i_cx},{i_cy}) | # of gc:{len(clusters)} | length:{cl_length}') # debug
 
             m = Marker(
                 header=self.mapdata.header,
@@ -148,8 +176,8 @@ class Frontiers(Node):
 
             m.pose.position.x = cx*self.mapdata.info.resolution + self.mapdata.info.origin.position.x
             m.pose.position.y = cy*self.mapdata.info.resolution + self.mapdata.info.origin.position.y
-            m.pose.position.z = 0.1
-            m.scale.x = m.scale.y = m.scale.z = 0.08
+            m.pose.position.z = 0.01
+            m.scale.x = m.scale.y = m.scale.z = 0.05
             m.color.r = 1.0; m.color.a = 0.8
             m.lifetime.sec = 8
             ma.markers.append(m)
@@ -159,16 +187,20 @@ class Frontiers(Node):
         if largest is None:
             self.loginfo('NAV GOAL: no frontiers found')
         else:
+            # gx, gy = (13, 52) # this is a test point that i know is walkable
             gx, gy = largest
+
             # convert grid centroid -> world meters
             res = self.mapdata.info.resolution
             origin = self.mapdata.info.origin
             world_x = gx * res + origin.position.x
             world_y = gy * res + origin.position.y
 
-            pose = self.convert_to_pose((1.0, 1.0))
+            pose = self.convert_to_pose((world_x, world_y))
             self.get_logger().info(f'NAV GOAL (world): ({world_x:.3f}, {world_y:.3f})')
+
             if not self.goal_sent:
+                self.loginfo("goal being published")
                 self.nav_goal.publish(pose)
                 self.goal_sent = True
         
@@ -183,6 +215,45 @@ class Frontiers(Node):
         pose_message.pose.position.y = float(input_coord[1])
 
         return pose_message
+
+    def drivable_coordinate(self, map: OccupancyGrid, coordinate: Tuple[int, int]):
+        # drivable = MapMethods.is_cell_walkable(map, coordinate)
+        #if not drivable:
+        
+            drivable_cells = []
+            neighbors = MapMethods.expanded_neighbors8(coordinate, self.c_space)
+            for neighbor in neighbors:
+                valid = MapMethods.is_cell_walkable(map, neighbor)
+                if valid:
+                    drivable_cells.append(neighbor)
+            if len(drivable_cells) != 0:
+                self.loginfo('[drivable_coords]: drivable cells found!')
+                mk = MarkerArray()
+                for cell in drivable_cells:
+
+                    m = Marker(
+                        header=self.mapdata.header,
+                        ns='drivable_points',
+                        id=drivable_cells.index(cell),
+                        type=Marker.SPHERE,
+                        action=Marker.ADD
+                    )
+
+                    cx, cy = cell[0], cell[1]
+                    m.pose.position.x = cx*self.mapdata.info.resolution + self.mapdata.info.origin.position.x
+                    m.pose.position.y = cy*self.mapdata.info.resolution + self.mapdata.info.origin.position.y
+                    m.pose.position.z = 0.01
+                    m.scale.x = m.scale.y = m.scale.z = 0.08
+                    m.color.g = 1.0; m.color.a = 0.8
+                    m.lifetime.sec = 8
+
+                    mk.markers.append(m)
+
+                self.drive_points.publish(mk)
+                return drivable_cells[0]
+            else:
+                self.loginfo('[drivable_coords]: no drivable cells!!!')
+                return None 
 
     @staticmethod
     def calc_centroid (cluster: List[Tuple[int,int]]) -> Tuple[float,float]:

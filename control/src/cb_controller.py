@@ -122,7 +122,7 @@ class Controller(Node):
         distance = math.sqrt((goal_pos_x - initial_x)**2 + (goal_pos_y - initial_y)**2) 
         self.drive(distance, 0.1) 
         
-        self.get_next_point();
+        self.get_next_point()
     
     def get_path_from_planner(self, msg: PoseStamped):
         if not self.odom_ready:

@@ -20,27 +20,32 @@ class PathPlanner(Node):
         qos = QoSProfile(depth=10)
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
 
+        self.c_space_val = 3
+        self.init_cspace = False
+
         # add visuals to rviz
-        self.expanded_cells = self.create_publisher(GridCells, "/expanded_cells", qos) 
-        self.frontier_cells = self.create_publisher(GridCells, "/frontier", qos)
+        self.expanded_cells = self.create_publisher(GridCells, "/path_planner/expanded_cells", qos) 
+        self.frontier_cells = self.create_publisher(GridCells, "/path_planner/frontier", qos)
         self.c_space = self.create_publisher(GridCells, "/path_planner/c_space", qos)
-        self.robot_path = self.create_publisher(Path,'/robot_path', qos)
+        self.robot_path = self.create_publisher(Path,'/path_planner/robot_path', qos)
 
         # main servce call
         self.path_to_drive = self.create_service(GetPlan, '/path_planner/plan_path', self.plan_path)
 
-        # Subscribe to map topic instead of caching via service
+        # Subscribe to map topic
         self.map_sub = self.create_subscription(OccupancyGrid, '/map', self.map_callback, qos)
         
-
     # ----------------------- Map Stuff ---------------------------------
     def map_callback(self, msg: OccupancyGrid): # maybe working function to use whenever the map gets changes (or when you re call the plan_path service)
         """
         Update the whenever it changes
         """
         self.cached_map = msg
-        # self.loginfo(f'map dimensions: {self.cached_map.info.width} x {self.cached_map.info.height} @ {self.cached_map.info.resolution} ')
         self.map_ready = True
+
+        if self.map_ready and not self.init_cspace:
+                self.calc_cspace(msg, self.c_space_val)
+                self.init_cspace = True
 
     # --------------------- easy stuff, should not need any ros2 translating
     @staticmethod
@@ -235,23 +240,24 @@ class PathPlanner(Node):
         arrayRows = mapdata.info.height
         arrayCols = mapdata.info.width
 
-        self.loginfo("Calculating C-Space")  
-        x, y = 0, 0
-
-        for cell in range(len(paddedGrid) - 1):
-
-            if not PathPlanner.is_cell_walkable(mapdata, (x,y)):
-
-                for nextY in range(-padding, padding + 1): # Stop value isn't included in output so need to add one
-                    for nextX in range(-padding, padding + 1):
-                        if((x+nextX) in range(0, arrayCols) and (y+nextY) in range(0, arrayRows) and PathPlanner.is_cell_walkable(mapdata, (x+nextX, y+nextY))): # Ensure that neighboring cell is walkable, should also be fine to check if cell is within the image/grid
-                            addedCells.append(PathPlanner.grid_to_world(mapdata, (x+nextX, y+nextY))) #Add the real world version of the cell to the list
-                            paddedGrid[PathPlanner.grid_to_index(mapdata, (x+nextX, y+nextY))] = 100 # Make the cell unwalkable in the new grid
-                
-            x += 1
-            if x % arrayCols == 0:
-                y += 1
-                x = 0
+        self.loginfo("Calculating C-Space")
+        
+        # Iterate through each cell properly
+        for y in range(arrayRows):
+            for x in range(arrayCols):
+                # If this cell is an obstacle, inflate around it
+                if not PathPlanner.is_cell_walkable(mapdata, (x, y)):
+                    for dy in range(-padding, padding + 1):
+                        for dx in range(-padding, padding + 1):
+                            nx, ny = x + dx, y + dy
+                            # Check bounds and if neighbor is walkable in ORIGINAL map
+                            if (0 <= nx < arrayCols and 0 <= ny < arrayRows):
+                                neighbor_idx = PathPlanner.grid_to_index(mapdata, (nx, ny))
+                                # Only inflate if: 1) walkable in original, 2) not already inflated
+                                if (PathPlanner.is_cell_walkable(mapdata, (nx, ny)) and 
+                                    paddedGrid[neighbor_idx] != 100):
+                                    addedCells.append(PathPlanner.grid_to_world(mapdata, (nx, ny)))
+                                    paddedGrid[neighbor_idx] = 100
 
         paddedCells = GridCells()
         paddedCells.header = mapdata.header
@@ -262,7 +268,7 @@ class PathPlanner(Node):
         
         self.c_space.publish(paddedCells)
 
-        self.loginfo(f"Publishing {len(addedCells)} C-space cells")
+        # self.loginfo(f"Publishing {len(addedCells)} C-space cells")
 
         # more ros2 type annoyances...
         c_map = OccupancyGrid()
@@ -355,9 +361,13 @@ class PathPlanner(Node):
         
         mapdata = self.cached_map 
 
-        cspacedata = self.calc_cspace(mapdata, 5) # calc C space
+        cspacedata = self.calc_cspace(mapdata, self.c_space_val) # calc C space
         start = PathPlanner.world_to_grid(mapdata, request.start.pose.position)
         goal  = PathPlanner.world_to_grid(mapdata, request.goal.pose.position)
+
+        if not PathPlanner.is_cell_walkable(mapdata, goal):
+            self.loginfo("point unreachable")
+
         self.loginfo(f"Grid start: {start}, Grid goal: {goal}") # confirm start/goal pos
         
         path  = self.a_star(cspacedata, start, goal) # generate path with A*

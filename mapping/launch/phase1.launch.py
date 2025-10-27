@@ -3,7 +3,7 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, TimerAction
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
@@ -18,7 +18,7 @@ def generate_launch_description():
     map_dir = os.path.join(this_dir, 'maps') 
 
     # variables
-    use_sim_time = LaunchConfiguration('use_sim_time', default='True')
+    use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     slam = LaunchConfiguration('slam', default='True')
     config_file =  LaunchConfiguration('config_file',default=os.path.join(get_package_share_directory('mapping'), 'config', 'tb3_nav.yaml'))
 
@@ -54,7 +54,7 @@ def generate_launch_description():
             os.path.join(tb3_gz_pkg, 'spawn_turtlebot3.launch.py')
         ),
         launch_arguments={
-            'x_pose': '0.06',
+            'x_pose': '0.1',
             'y_pose': '0.0',
             'use_sim_time': 'true'
         }.items()
@@ -109,12 +109,13 @@ def generate_launch_description():
     )
 
     # frontier node
-    frontier = Node(
+    frontier = TimerAction(period=20.0, 
+        actions=[ Node(
         package='mapping',
         executable='frontiers.py',
         name='frontier_debug',
         output='screen'
-    )
+    )])
 
     # laser filter for SLAM
     laser_filter = Node(
