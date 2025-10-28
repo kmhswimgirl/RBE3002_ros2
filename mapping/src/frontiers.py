@@ -18,7 +18,7 @@ class Frontiers(Node):
 
         # frontier / centroid tuning
         self.frontier_threshold = 12
-        self.c_space = 3
+        self.c_space = 4
 
         # quality of service stuff
         qos = QoSProfile(depth=100) # practically queue size lol
@@ -219,7 +219,7 @@ class Frontiers(Node):
     def drivable_coordinate(self, map: OccupancyGrid, coordinate: Tuple[int, int]):
         # drivable = MapMethods.is_cell_walkable(map, coordinate)
         #if not drivable:
-        
+
             drivable_cells = []
             neighbors = MapMethods.expanded_neighbors8(coordinate, self.c_space)
             for neighbor in neighbors:

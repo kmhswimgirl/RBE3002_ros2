@@ -22,6 +22,9 @@ class Controller(Node):
         self.goal_y = None
         self.goal_theta = None
 
+        self.path_to_goal = None
+        self.current_path_index = 0
+
         self.odom_ready = False
 
         self.cb_group = ReentrantCallbackGroup() # allow for multiple things at once

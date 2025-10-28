@@ -140,10 +140,10 @@ class MapMethods(Node):
         @staticmethod
         def expanded_neighbors8(p: Tuple[int, int], c_space: int):
             x, y = p[0], p[1]
-            radius = c_space + 3
+            radius = c_space + 4
             expanded_neighbors = []
 
-            for dx, dy in [(-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)]:
+            for dx, dy in [(1,1)]: # (-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),
                     dx, dy = dx * radius, dy * radius
                     new_point = (x+dx, y+dy)
                     expanded_neighbors.append(new_point)

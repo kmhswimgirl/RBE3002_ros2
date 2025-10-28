@@ -7,12 +7,7 @@ Panels:
         - /Global Options1
         - /Status1
         - /LaserScan1/Topic1
-        - /Path1
-        - /Map1
-        - /MarkerArray1
         - /MarkerArray1/Topic1
-        - /GridCells2
-        - /Path2
         - /Path2/Topic1
       Splitter Ratio: 0.5
     Tree Height: 811
@@ -64,9 +59,9 @@ Visualization Manager:
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 0
+      Max Intensity: 238
       Min Color: 0; 0; 0
-      Min Intensity: 0
+      Min Intensity: 206
       Name: LaserScan
       Position Transformer: XYZ
       Selectable: true
@@ -296,7 +291,7 @@ Visualization Manager:
       Enabled: true
       Name: MarkerArray
       Namespaces:
-        frontier_centroids: true
+        {}
       Topic:
         Depth: 1
         Durability Policy: Transient Local
@@ -345,6 +340,18 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /robot_path
       Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: MarkerArray
+      Namespaces:
+        {}
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /frontiers/drive_points
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -379,7 +386,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 1.1965738534927368
+      Distance: 2.4737486839294434
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -394,10 +401,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.8597970604896545
+      Pitch: 1.129797339439392
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 1.2372382879257202
+      Yaw: 1.3972407579421997
     Saved:
       - Class: rviz_default_plugins/Orbit
         Distance: 2.7593791484832764
@@ -433,5 +440,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1920
-  X: 389
-  Y: 245
+  X: 187
+  Y: 100

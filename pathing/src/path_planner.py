@@ -17,10 +17,10 @@ class PathPlanner(Node):
         self.loginfo = self.get_logger().info
 
         # QoS config for c-space?
-        qos = QoSProfile(depth=10)
+        qos = QoSProfile(depth=100)
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
 
-        self.c_space_val = 3
+        self.c_space_val = 4
         self.init_cspace = False
 
         # add visuals to rviz
@@ -365,7 +365,7 @@ class PathPlanner(Node):
         start = PathPlanner.world_to_grid(mapdata, request.start.pose.position)
         goal  = PathPlanner.world_to_grid(mapdata, request.goal.pose.position)
 
-        if not PathPlanner.is_cell_walkable(mapdata, goal):
+        if PathPlanner.is_cell_walkable(mapdata, goal) == False:
             self.loginfo("point unreachable")
 
         self.loginfo(f"Grid start: {start}, Grid goal: {goal}") # confirm start/goal pos
