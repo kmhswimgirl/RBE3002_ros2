@@ -31,10 +31,17 @@ def generate_launch_description():
         parameters=[{'use_sim_time': True}]
     )
 
+    static_transform = Node(package = "tf2_ros", 
+                       executable = "static_transform_publisher",
+                       arguments=["0.5", "0.2", "0", "0.78", "0", "0", "odom", "map"] 
+            )
+
+
     return LaunchDescription([
         turtlebot,
         rviz,
-        lab2_node
+        lab2_node,
+        static_transform
     ])
 
 

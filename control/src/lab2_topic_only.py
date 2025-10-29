@@ -9,6 +9,11 @@ from scipy.spatial.transform import Rotation as R
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 
+from tf2_ros.transform_listener import TransformListener
+from tf2_ros.buffer import Buffer
+
+import tf2_geometry_msgs
+
 class Controller(Node):
     def __init__(self, px, py, pth):
         super().__init__('controller')
@@ -29,8 +34,13 @@ class Controller(Node):
 
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.update_odometry, 10, callback_group=self.cb_group)
         self.get_test_path = self.create_subscription(Path,'/path_generator', self.handle_path, 10, callback_group=self.cb_group)
+        self.get_pose = self.create_subscription(PoseStamped,'/move_base_simple/goal', self.go_to, 10, callback_group=self.cb_group)
 
         self.cmd_vel_pub = self.create_publisher(TwistStamped, '/cmd_vel', 10)
+
+        self._tf_buffer = Buffer()
+        self._tf_listener = TransformListener(self._tf_buffer, self)
+
 
         self.get_logger().info("Controller Initialized")
 
