@@ -99,8 +99,11 @@ class Controller(Node):
         self.send_speed(0,0) 
 
     def go_to(self, msg: PoseStamped):
-        goal_pos_x = msg.pose.position.x
-        goal_pos_y = msg.pose.position.y
+        #always transform pose into odom frame, as thats the frame we our px,py are in
+        pose_in_odom = self._tf_buffer.transform(msg,'odom', rclpy.duration.Duration(seconds=1))
+
+        goal_pos_x = pose_in_odom.pose.position.x
+        goal_pos_y = pose_in_odom.pose.position.y
 
         initial_x = self.px
         initial_y = self.py
