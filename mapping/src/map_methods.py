@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 import math
 from typing import Tuple, List
 from nav_msgs.msg import OccupancyGrid
@@ -143,7 +144,7 @@ class MapMethods(Node):
             radius = c_space + 4
             expanded_neighbors = []
 
-            for dx, dy in [(1,1)]: # (-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),
+            for dx, dy in [(1,1),(-1,-1)]: # (-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),
                     dx, dy = dx * radius, dy * radius
                     new_point = (x+dx, y+dy)
                     expanded_neighbors.append(new_point)

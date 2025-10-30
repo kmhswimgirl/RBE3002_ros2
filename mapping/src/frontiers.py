@@ -42,8 +42,6 @@ class Frontiers(Node):
         # publish the calculated nav_goal
         self.nav_goal = self.create_publisher(PoseStamped, '/nav_goal', qos) # this becomes the goal in control
 
-        # self.c_cells = self.create_subscription(GridCells, '/path_planner/c_cpace', qos)
-
         # rviz debug
         self.frontiers_rviz = self.create_publisher(GridCells, '/frontier_cells', qos)
         self.centroids = self.create_publisher(MarkerArray, '/centroids', qos)
@@ -217,43 +215,41 @@ class Frontiers(Node):
         return pose_message
 
     def drivable_coordinate(self, map: OccupancyGrid, coordinate: Tuple[int, int]):
-        # drivable = MapMethods.is_cell_walkable(map, coordinate)
-        #if not drivable:
 
-            drivable_cells = []
-            neighbors = MapMethods.expanded_neighbors8(coordinate, self.c_space)
-            for neighbor in neighbors:
-                valid = MapMethods.is_cell_walkable(map, neighbor)
-                if valid:
-                    drivable_cells.append(neighbor)
-            if len(drivable_cells) != 0:
-                self.loginfo('[drivable_coords]: drivable cells found!')
-                mk = MarkerArray()
-                for cell in drivable_cells:
+        drivable_cells = []
+        neighbors = MapMethods.expanded_neighbors8(coordinate, self.c_space)
+        for neighbor in neighbors:
+            valid = MapMethods.is_cell_walkable(map, neighbor)
+            if valid:
+                drivable_cells.append(neighbor)
+        if len(drivable_cells) != 0:
+            self.loginfo('[drivable_coords]: drivable cells found!')
+            mk = MarkerArray()
+            for cell in drivable_cells:
 
-                    m = Marker(
-                        header=self.mapdata.header,
-                        ns='drivable_points',
-                        id=drivable_cells.index(cell),
-                        type=Marker.SPHERE,
-                        action=Marker.ADD
-                    )
+                m = Marker(
+                    header=self.mapdata.header,
+                    ns='drivable_points',
+                    id=drivable_cells.index(cell),
+                    type=Marker.SPHERE,
+                    action=Marker.ADD
+                )
 
-                    cx, cy = cell[0], cell[1]
-                    m.pose.position.x = cx*self.mapdata.info.resolution + self.mapdata.info.origin.position.x
-                    m.pose.position.y = cy*self.mapdata.info.resolution + self.mapdata.info.origin.position.y
-                    m.pose.position.z = 0.01
-                    m.scale.x = m.scale.y = m.scale.z = 0.08
-                    m.color.g = 1.0; m.color.a = 0.8
-                    m.lifetime.sec = 8
+                cx, cy = cell[0], cell[1]
+                m.pose.position.x = cx*self.mapdata.info.resolution + self.mapdata.info.origin.position.x
+                m.pose.position.y = cy*self.mapdata.info.resolution + self.mapdata.info.origin.position.y
+                m.pose.position.z = 0.01
+                m.scale.x = m.scale.y = m.scale.z = 0.08
+                m.color.g = 1.0; m.color.a = 0.8
+                m.lifetime.sec = 8
 
-                    mk.markers.append(m)
+                mk.markers.append(m)
 
-                self.drive_points.publish(mk)
-                return drivable_cells[0]
-            else:
-                self.loginfo('[drivable_coords]: no drivable cells!!!')
-                return None 
+            self.drive_points.publish(mk)
+            return drivable_cells[0]
+        else:
+            self.loginfo('[drivable_coords]: no drivable cells!!!')
+            return None 
 
     @staticmethod
     def calc_centroid (cluster: List[Tuple[int,int]]) -> Tuple[float,float]:
