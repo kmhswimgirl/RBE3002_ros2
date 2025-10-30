@@ -21,6 +21,9 @@ class PathPlanner(Node):
         qos = QoSProfile(depth=10)
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
 
+        qos_plan = QoSProfile(depth=1)
+        qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
+
         # add visuals to rviz
         self.expanded_cells = self.create_publisher(GridCells, "/expanded_cells", qos) 
         self.frontier_cells = self.create_publisher(GridCells, "/frontier", qos)
