@@ -116,20 +116,17 @@ class Frontiers(Node):
         # return centroid in grid coordinates
         self.loginfo(f'[DEBUG]: get_largest_frontier | centroid = ({cx}, {cy})')
 
-        # if not MapMethods.is_cell_walkable(self.mapdata, (cx,cy)):
-        # self.loginfo('[DEBUG]: get_largest_frontier | centroid not walkable')
-
-        exp_cells = self.drivable_coordinate(self.mapdata, (cx, cy))
+        exp_cells = self.calc_drive_goals(self.mapdata, largest_cluster, 3.0)
 
         self.loginfo(f'drivable coordinates??? {exp_cells}')
 
         if exp_cells is None:
+            self.loginfo('[DEBUG]: get_largest_frontier | no cells...')
             return
         return exp_cells
 
-    
     def navigation_update(self):
-
+        '''update the map with frontiers, centroids, & drive goals'''
         if self.mapdata is None:
             self.loginfo('No Map!')
             return
@@ -155,7 +152,7 @@ class Frontiers(Node):
         num_clusters_post = len(cleaned_clusters)
         self.loginfo(f'filtered: {num_clusters_post}')
 
-        ma = MarkerArray()
+        ma = MarkerArray() # visualizing in Rviz
         for i, clusters in enumerate(cleaned_clusters):
             cx, cy = self.calc_centroid(clusters)
             cl_length = self.frontier_length(clusters)
@@ -182,11 +179,10 @@ class Frontiers(Node):
 
         largest = self.get_largest_frontier(cleaned_clusters)
 
-        if largest is None:
+        if largest is None or len(largest) == 0:
             self.loginfo('NAV GOAL: no frontiers found')
         else:
-            # gx, gy = (13, 52) # this is a test point that i know is walkable
-            gx, gy = largest
+            gx, gy = largest[0]
 
             # convert grid centroid -> world meters
             res = self.mapdata.info.resolution
@@ -213,43 +209,57 @@ class Frontiers(Node):
         pose_message.pose.position.y = float(input_coord[1])
 
         return pose_message
+        
+    def calc_drive_goals(self, map:OccupancyGrid, cluster:List[Tuple[int,int]], buffer:float):
+        drive_goals = []
+        mk = MarkerArray()
+        x2, y2 = cluster[-1]
+        x1, y1 = Frontiers.calc_centroid(cluster)
 
-    def drivable_coordinate(self, map: OccupancyGrid, coordinate: Tuple[int, int]):
+        dx21 = x1 - x2
+        dy21 = y1 - y2
 
-        drivable_cells = []
-        neighbors = MapMethods.expanded_neighbors8(coordinate, self.c_space)
-        for neighbor in neighbors:
-            valid = MapMethods.is_cell_walkable(map, neighbor)
-            if valid:
-                drivable_cells.append(neighbor)
-        if len(drivable_cells) != 0:
-            self.loginfo('[drivable_coords]: drivable cells found!')
-            mk = MarkerArray()
-            for cell in drivable_cells:
+        d12 = math.sqrt( dx21**2 + dy21**2 )
+        d13 = self.c_space + buffer
 
+        psi = d13/d12
+
+        dy13 = int(-psi * dx21)
+        dx13 = int(psi * dy21)
+
+        x3 = int(x1 + dx13)
+        y3 = int(y1 + dy13)
+
+        x4 = int(x1 - dx13)
+        y4 = int(y1 - dy13)
+
+        coords = [(x3,y3), (x4,y4)]
+
+        for coord in coords:
+            if MapMethods.is_cell_walkable(map, coord):
                 m = Marker(
                     header=self.mapdata.header,
-                    ns='drivable_points',
-                    id=drivable_cells.index(cell),
+                    ns='drive_points',
+                    id=coords.index(coord),
                     type=Marker.SPHERE,
                     action=Marker.ADD
                 )
 
-                cx, cy = cell[0], cell[1]
-                m.pose.position.x = cx*self.mapdata.info.resolution + self.mapdata.info.origin.position.x
-                m.pose.position.y = cy*self.mapdata.info.resolution + self.mapdata.info.origin.position.y
+                px, py = coord[0], coord[1]
+                m.pose.position.x = px*self.mapdata.info.resolution + self.mapdata.info.origin.position.x
+                m.pose.position.y = py*self.mapdata.info.resolution + self.mapdata.info.origin.position.y
                 m.pose.position.z = 0.01
                 m.scale.x = m.scale.y = m.scale.z = 0.08
                 m.color.g = 1.0; m.color.a = 0.8
                 m.lifetime.sec = 8
 
                 mk.markers.append(m)
+                drive_goals.append(coord)
 
-            self.drive_points.publish(mk)
-            return drivable_cells[0]
-        else:
-            self.loginfo('[drivable_coords]: no drivable cells!!!')
-            return None 
+        self.drive_points.publish(mk)     
+        return drive_goals
+    
+    
 
     @staticmethod
     def calc_centroid (cluster: List[Tuple[int,int]]) -> Tuple[float,float]:
