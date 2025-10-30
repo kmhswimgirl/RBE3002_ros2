@@ -22,6 +22,9 @@ class Controller(Node):
         self.goal_y = None
         self.goal_theta = None
 
+        self.path_to_goal = None
+        self.current_path_index = 0
+
         self.odom_ready = False
 
         self.cb_group = ReentrantCallbackGroup() # allow for multiple things at once
@@ -122,7 +125,7 @@ class Controller(Node):
         distance = math.sqrt((goal_pos_x - initial_x)**2 + (goal_pos_y - initial_y)**2) 
         self.drive(distance, 0.1) 
         
-        self.get_next_point();
+        self.get_next_point()
     
     def get_path_from_planner(self, msg: PoseStamped):
         if not self.odom_ready:
@@ -155,6 +158,7 @@ class Controller(Node):
 
         while not self.path_client.wait_for_service(timeout_sec=1.0): # wait for service
             self.get_logger().info("waiting for path")
+            self.send_speed(0.0, 0.0)
 
         planned_path_future = self.path_client.call_async(path_req)
         planned_path_future.add_done_callback(self.handle_path_response)
@@ -171,8 +175,10 @@ class Controller(Node):
                 self.get_logger().info(f"Received path with {len(self.path_to_goal.poses)} poses")
             else:
                 self.get_logger().warn("path empty")
+                self.send_speed(0.0, 0.0)
         except Exception as e:
             self.get_logger().error(f"failed to get path")
+            self.send_speed(0.0, 0.0)
 
     def get_next_point(self):  # iterate to the next pose in the path that was generated from path_planner
         if self.path_to_goal and self.current_path_index < len(self.path_to_goal.poses) - 1:
@@ -182,6 +188,7 @@ class Controller(Node):
             self.get_logger().info(f"Moving to waypoint {self.current_path_index}/{len(self.path_to_goal.poses)-1}")
         else:
             self.get_logger().info("Reached final destination!")
+            self.send_speed(0.0, 0.0)
             self.path_to_goal = None
             self.current_path_index = 0
     
