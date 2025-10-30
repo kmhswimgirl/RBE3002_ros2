@@ -17,8 +17,9 @@ class Frontiers(Node):
         self.loginfo = self.get_logger().info
 
         # frontier / centroid tuning
-        self.frontier_threshold = 12
+        self.frontier_threshold = 20
         self.c_space = 4
+        self.replan_rate = 10.0
 
         # quality of service stuff
         qos = QoSProfile(depth=100) # practically queue size lol
@@ -26,6 +27,7 @@ class Frontiers(Node):
 
         self.mapdata = None
         self.goal_sent = False
+        self.phase_2 = False
 
         # need map and nav update
         # --> CB group, same as L2
@@ -34,7 +36,7 @@ class Frontiers(Node):
         # map handling
         self.map = self.create_subscription(OccupancyGrid, '/map', self.map_callback, qos, callback_group=self.map_timer)
 
-        self.send_goal = self.create_timer(10.0, self.toggle_goal_send, callback_group=self.map_timer)
+        self.send_goal = self.create_timer(self.replan_rate, self.toggle_goal_send, callback_group=self.map_timer)
 
         # timer calls update nav points, which recalculates the centroids + frontiers
         self.update_nav_points = self.create_timer(1.0, self.navigation_update, callback_group=self.map_timer)
@@ -48,17 +50,14 @@ class Frontiers(Node):
         self.drive_points = self.create_publisher(MarkerArray, 'frontiers/drive_points', qos)
 
     def map_callback(self, msg: OccupancyGrid): # maybe working function to use whenever the map gets changes (or when you re call the plan_path service)
-        """
-        Update the whenever /map recieves a new message
-        """
+        '''Update the whenever /map recieves a new message'''
         self.mapdata = msg
 
     def toggle_goal_send(self):
+        '''toggle boolean when ready to send a new nav goal'''
         self.goal_sent = False
 
-    def confirm_c_space(self, cells:GridCells):
-        if len(cells) > 0:
-            self.c_space_ready = True
+    ## ------------- Frontier Finding Functions ------------- ##
 
     def extract_frontier_seeds(self, mapdata: OccupancyGrid) -> List[Tuple[int,int]]:
         ''' return all cells that border free and unknown space'''
@@ -94,11 +93,12 @@ class Frontiers(Node):
             clusters.append(comp)
         return clusters
     
+    ## --------------- Frontier Scoring Functions --------------- ##
+    
     def filter_frontiers(self, frontiers: List[List[Tuple[int,int]]]):
         '''remove clusters that are either SLAM mistakes or are too small to be considered a viable nav goal'''
         new_frontiers = []
         for cluster in frontiers:
-             # frontier_length = Frontiers.frontier_length(cluster) something off about the math...
             num_gc = len(cluster)
             if num_gc >= self.frontier_threshold:
                 new_frontiers.append(cluster)
@@ -125,7 +125,10 @@ class Frontiers(Node):
             return
         return exp_cells
 
+    ## ------------------- 
     def navigation_update(self):
+
+        
         '''update the map with frontiers, centroids, & drive goals'''
         if self.mapdata is None:
             self.loginfo('No Map!')
@@ -259,7 +262,7 @@ class Frontiers(Node):
         self.drive_points.publish(mk)     
         return drive_goals
     
-    
+
 
     @staticmethod
     def calc_centroid (cluster: List[Tuple[int,int]]) -> Tuple[float,float]:
