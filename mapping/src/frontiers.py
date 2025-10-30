@@ -127,8 +127,6 @@ class Frontiers(Node):
 
     ## ------------------- 
     def navigation_update(self):
-
-        
         '''update the map with frontiers, centroids, & drive goals'''
         if self.mapdata is None:
             self.loginfo('No Map!')
