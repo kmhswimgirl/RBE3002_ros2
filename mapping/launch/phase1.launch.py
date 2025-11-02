@@ -109,7 +109,7 @@ def generate_launch_description():
     )
 
     # frontier node
-    frontier = TimerAction(period=20.0, 
+    frontier = TimerAction(period=30.0, 
         actions=[ Node(
         package='mapping',
         executable='frontiers.py',
