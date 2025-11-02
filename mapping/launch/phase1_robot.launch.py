@@ -21,6 +21,7 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time', default='false') # false for real robot
     slam = LaunchConfiguration('slam', default='True')
     config_file =  LaunchConfiguration('config_file',default=os.path.join(get_package_share_directory('mapping'), 'config', 'tb3_nav.yaml'))
+    # delay_frontier = LaunchConfiguration('node_delay',default=30.0)
 
     # launch arguments
     params = DeclareLaunchArgument(
@@ -32,6 +33,12 @@ def generate_launch_description():
             'use_sim_time',
             default_value=use_sim_time,
             description='Use simulation (Gazebo) clock if true')
+    
+    # delay = DeclareLaunchArgument(
+    #         'node_delay',
+    #         default_value=delay_frontier,
+    #         description='How long to delay the launch of frontiers.py in seconds'
+    # )
     
     # robot state publisher
     robot_state_publisher_cmd = IncludeLaunchDescription(
@@ -89,14 +96,14 @@ def generate_launch_description():
         output='screen'
     )
 
-    # # frontier node
-    # frontier = TimerAction(period=20.0, 
-    #                        actions=[ Node(
-    #     package='mapping',
-    #     executable='frontiers.py',
-    #     name='frontier_debug',
-    #     output='screen'
-    # )])
+    # frontier node
+    frontier = TimerAction(period=30.0, 
+                           actions=[ Node(
+        package='mapping',
+        executable='frontiers.py',
+        name='frontier_debug',
+        output='screen'
+    )])
 
     # laser filter for SLAM
     laser_filter = Node(
@@ -117,7 +124,7 @@ def generate_launch_description():
         rviz2,
         laser_filter,
         slam_bringup,
-        # frontier,
+        frontier,
         path_planner,
         driver
     ])

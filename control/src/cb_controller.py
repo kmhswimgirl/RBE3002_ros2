@@ -14,6 +14,18 @@ class Controller(Node):
     def __init__(self, px, py, pth):
         super().__init__('controller')
 
+        self.declare_parameters(
+            namespace='',
+            parameters=[
+                ('angular_speed', 0.5),
+                ('linear_speed', 0.1),
+                ('angular_tolerance', 0.02), 
+                ('linear_tolerance', 0.03),
+                ('path_tolerance', 0.03),
+                ('poses_before_goal', 1),
+                ('delay_rate', 30)
+            ])
+
         self.px = px
         self.py = py
         self.pth = pth
@@ -22,19 +34,28 @@ class Controller(Node):
         self.goal_y = None
         self.goal_theta = None
 
+        # speeds + tolerances
+        self.angular_speed = self.get_parameter('angular_speed').value
+        self.linear_speed = self.get_parameter('linear_speed').value
+        self.angular_tolerance = self.get_parameter('angular_tolerance').value
+        self.linear_tolerance = self.get_parameter('linear_tolerance').value
+        self.delay_rate = self.get_parameter('delay_rate').value
+
         self.path_to_goal = None
         self.current_path_index = 0
+
+        self.path_tolerance = self.get_parameter('path_tolerance').value
+        self.stop_before_goal = self.get_parameter('poses_before_goal').value
 
         self.odom_ready = False
 
         self.cb_group = ReentrantCallbackGroup() # allow for multiple things at once
 
-        self.rate = self.create_rate(30) # Hz
+        self.rate = self.create_rate(self.delay_rate) # Hz
 
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.update_odometry, 10, callback_group=self.cb_group)
         self.rviz_goal = self.create_subscription(PoseStamped, '/move_base_simple/goal', self.get_path_from_planner, 10, callback_group=self.cb_group)
         self.sub_goal = self.create_subscription(PoseStamped, '/nav_goal', self.get_path_from_planner, 10, callback_group=self.cb_group)
-
         self.cmd_vel_pub = self.create_publisher(TwistStamped, '/cmd_vel', 10)
 
         self.path_client = self.create_client(GetPlan, '/path_planner/plan_path')
@@ -64,7 +85,7 @@ class Controller(Node):
         :param linear_speed [float] [m/s] The forward linear speed.
         '''
         error = 1000
-        tolerance = 0.02 # meters
+        tolerance = self.linear_tolerance # meters
         initialx = self.px
         initialy = self.py
         
@@ -85,7 +106,7 @@ class Controller(Node):
         :param angular_speed [float] [rad/s] The angular speed.
         '''
         error = 10000
-        tolerance = 0.03 # radians?
+        tolerance = self.angular_tolerance # radians?
         goalAngle  = angle
 
         # account for 0 and 2pi being the same position etc.
@@ -120,10 +141,10 @@ class Controller(Node):
 
         newAngle = math.atan2((goal_pos_y - initial_y), (goal_pos_x - initial_x))
 
-        self.rotate(newAngle, 0.5)
+        self.rotate(newAngle, self.angular_speed)
 
         distance = math.sqrt((goal_pos_x - initial_x)**2 + (goal_pos_y - initial_y)**2) 
-        self.drive(distance, 0.1) 
+        self.drive(distance, self.linear_speed) 
         
         self.get_next_point()
     
@@ -136,7 +157,7 @@ class Controller(Node):
 
         # start pose from current odom
         start = PoseStamped()
-        start.header.frame_id = "map"  # Use map frame instead of odom
+        start.header.frame_id = "odom"  # watch the frames
         start.header.stamp = self.get_clock().now().to_msg()
         start.pose.position.x = self.px
         start.pose.position.y = self.py
@@ -154,7 +175,7 @@ class Controller(Node):
         path_req = GetPlan.Request()
         path_req.start = start
         path_req.goal = goal
-        path_req.tolerance = 0.03
+        path_req.tolerance = self.path_tolerance
 
         while not self.path_client.wait_for_service(timeout_sec=1.0): # wait for service
             self.get_logger().info("waiting for path")
@@ -181,11 +202,11 @@ class Controller(Node):
             self.send_speed(0.0, 0.0)
 
     def get_next_point(self):  # iterate to the next pose in the path that was generated from path_planner
-        if self.path_to_goal and self.current_path_index < len(self.path_to_goal.poses) - 1:
+        if self.path_to_goal and self.current_path_index < len(self.path_to_goal.poses) - 1: # stop at pose before goal
             self.current_path_index += 1
             next_pose = self.path_to_goal.poses[self.current_path_index]
             self.go_to(next_pose)
-            self.get_logger().info(f"Moving to waypoint {self.current_path_index}/{len(self.path_to_goal.poses)-1}")
+            self.get_logger().info(f"Moving to waypoint {self.current_path_index}/{len(self.path_to_goal.poses)- self.stop_before_goal}")
         else:
             self.get_logger().info("Reached final destination!")
             self.send_speed(0.0, 0.0)

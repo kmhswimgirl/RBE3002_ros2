@@ -14,13 +14,20 @@ from rclpy.qos import QoSProfile, DurabilityPolicy
 class PathPlanner(Node):
     def __init__(self):
         super().__init__('path_planner') # initialize node
+
+        self.declare_parameters(
+            namespace='',
+            parameters=[
+                ('c_space', 3)
+            ])
+
         self.loginfo = self.get_logger().info
 
         # QoS config for c-space?
         qos = QoSProfile(depth=100)
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
 
-        self.c_space_val = 4
+        self.c_space_val = self.get_parameter('c_space').value
         self.init_cspace = False
 
         # add visuals to rviz
