@@ -18,7 +18,7 @@ class PathPlanner(Node):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('c_space', 3)
+                ('c_space', 5)
             ])
 
         self.loginfo = self.get_logger().info
@@ -232,7 +232,6 @@ class PathPlanner(Node):
         return world_path
         
     # ------------------ C SPACE & A STAR
-
     def calc_cspace(self, mapdata: OccupancyGrid, padding: int) -> OccupancyGrid:
         """
         Calculates the C-Space, i.e., makes the obstacles in the map thicker.
@@ -274,8 +273,6 @@ class PathPlanner(Node):
         paddedCells.header.frame_id = "map"
         
         self.c_space.publish(paddedCells)
-
-        # self.loginfo(f"Publishing {len(addedCells)} C-space cells")
 
         # more ros2 type annoyances...
         c_map = OccupancyGrid()
@@ -357,7 +354,6 @@ class PathPlanner(Node):
         return path # Return the robot's path, in grid coordinates
 
     # ---------- Plan the Path
-
     def plan_path(self, request, response):
         self.loginfo(f"Start: ({request.start.pose.position.x}, {request.start.pose.position.y}, Goal: ({request.goal.pose.position.x}, {request.goal.pose.position.y})")
         
@@ -369,10 +365,11 @@ class PathPlanner(Node):
         mapdata = self.cached_map 
 
         cspacedata = self.calc_cspace(mapdata, self.c_space_val) # calc C space
-        start = PathPlanner.world_to_grid(mapdata, request.start.pose.position)
-        goal  = PathPlanner.world_to_grid(mapdata, request.goal.pose.position)
 
-        if PathPlanner.is_cell_walkable(mapdata, goal) == False:
+        start = PathPlanner.world_to_grid(cspacedata, request.start.pose.position)
+        goal  = PathPlanner.world_to_grid(cspacedata, request.goal.pose.position)
+
+        if PathPlanner.is_cell_walkable(cspacedata, goal) == False:
             self.loginfo("point unreachable")
 
         self.loginfo(f"Grid start: {start}, Grid goal: {goal}") # confirm start/goal pos

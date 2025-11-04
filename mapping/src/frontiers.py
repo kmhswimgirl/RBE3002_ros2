@@ -20,7 +20,7 @@ class Frontiers(Node):
             namespace='',
             parameters=[
                 ('grid_square_threshold', 15),
-                ('c_space', 4),
+                ('c_space', 7),
                 ('c_space_buffer', 2),
                 ('replan_rate', 10.0)
             ])

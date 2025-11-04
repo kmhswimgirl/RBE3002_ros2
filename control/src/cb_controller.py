@@ -219,6 +219,8 @@ def main(args=None): # i think i got this right? idk
     node = Controller(0,0,0)
     executor = MultiThreadedExecutor()
     executor.add_node(node)
+
+    rclpy.spin_once(node, timeout_sec=1.0) # <-- added this
     try:
         executor.spin()
     except KeyboardInterrupt:

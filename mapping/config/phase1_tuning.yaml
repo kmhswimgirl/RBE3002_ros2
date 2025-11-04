@@ -10,12 +10,12 @@ ros__parameters:
 
 path_planner:
   ros__parameters:
-    c_space: 4
+    c_space: 5
 
 frontiers:
   ros__parameters:
     grid_square_threshold: 20
-    c_space: 4
+    c_space: 7
     scoring: 'simple'
     replan_rate: 10.0
     

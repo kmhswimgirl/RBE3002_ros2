@@ -9,6 +9,7 @@ from geometry_msgs.msg import TwistStamped, PoseStamped
 from scipy.spatial.transform import Rotation as R
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
+from tf2_geometry_msgs import PoseStamped
 
 from tf2_ros.transform_listener import TransformListener
 from tf2_ros.buffer import Buffer
@@ -205,10 +206,10 @@ class Controller(Node):
                 self.get_logger().warn("path empty")
                 self.send_speed(0.0, 0.0)
         except Exception as e:
-            self.get_logger().error(f"failed to get path")
+            self.get_logger().error(f"failed to get path {e}")
             self.send_speed(0.0, 0.0)
 
-    def get_next_point(self):  # iterate to the next pose in the path that was generated from path_planner
+    def get_next_point(self): # iterate to the next pose in the path that was generated from path_planner
         if self.path_to_goal and self.current_path_index < len(self.path_to_goal.poses) - 1: # stop at pose before goal
             self.current_path_index += 1
             next_pose = self.path_to_goal.poses[self.current_path_index]
