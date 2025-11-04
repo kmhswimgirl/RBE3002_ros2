@@ -4,7 +4,7 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, TimerAction
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 
@@ -14,14 +14,14 @@ def generate_launch_description():
     this_dir = os.path.join(get_package_share_directory('mapping'))
     tb3_gz_pkg = os.path.join(get_package_share_directory('turtlebot3_gazebo'), 'launch')
     rviz_config_file = os.path.join(get_package_share_directory('mapping'), 'rviz', 'lab4_slam.rviz')
-    # sim_pkg_launch = os.path.join(get_package_share_directory('simulation'), 'launch')
     map_dir = os.path.join(this_dir, 'maps') 
 
+    
     # variables
     use_sim_time = LaunchConfiguration('use_sim_time', default='false') # false for real robot
     slam = LaunchConfiguration('slam', default='True')
     config_file =  LaunchConfiguration('config_file',default=os.path.join(get_package_share_directory('mapping'), 'config', 'tb3_nav.yaml'))
-    # delay_frontier = LaunchConfiguration('node_delay',default=30.0)
+    config_file =  LaunchConfiguration('config_file',default=os.path.join(get_package_share_directory('mapping'), 'config', 'tb3_nav.yaml'))
 
     # launch arguments
     params = DeclareLaunchArgument(
@@ -33,12 +33,6 @@ def generate_launch_description():
             'use_sim_time',
             default_value=use_sim_time,
             description='Use simulation (Gazebo) clock if true')
-    
-    # delay = DeclareLaunchArgument(
-    #         'node_delay',
-    #         default_value=delay_frontier,
-    #         description='How long to delay the launch of frontiers.py in seconds'
-    # )
     
     # robot state publisher
     robot_state_publisher_cmd = IncludeLaunchDescription(
@@ -97,7 +91,7 @@ def generate_launch_description():
     )
 
     # frontier node
-    frontier = TimerAction(period=30.0, 
+    frontier = TimerAction(period=40.0, 
                            actions=[ Node(
         package='mapping',
         executable='frontiers.py',
@@ -121,10 +115,10 @@ def generate_launch_description():
         sim_time,
         static_tf,
         robot_state_publisher_cmd,
-        rviz2,
         laser_filter,
         slam_bringup,
-        frontier,
+        rviz2,
+        # frontier,
         path_planner,
         driver
     ])

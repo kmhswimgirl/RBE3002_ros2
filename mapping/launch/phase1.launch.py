@@ -54,7 +54,7 @@ def generate_launch_description():
             os.path.join(tb3_gz_pkg, 'spawn_turtlebot3.launch.py')
         ),
         launch_arguments={
-            'x_pose': '0.1',
+            'x_pose': '0.15',
             'y_pose': '0.0',
             'use_sim_time': 'true'
         }.items()
