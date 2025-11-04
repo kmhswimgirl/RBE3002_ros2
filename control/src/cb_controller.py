@@ -132,6 +132,7 @@ class Controller(Node):
         This method is a callback bound to a Subscriber.
         :param msg [PoseStamped] The target pose.
         """
+        
    
         goal_pos_x = msg.pose.position.x
         goal_pos_y = msg.pose.position.y

@@ -26,6 +26,7 @@ install(PROGRAMS
   src/cb_controller.py # reworked lab 2 node (for B25 RBE3002)
   src/lab2_topic_only.py # topic only verion of lab 2
   src/lab2_path.py # test path node for lab 2
+  src/tf_controller.py # TF lookup bullshit implemented
   DESTINATION lib/control
 )
 
