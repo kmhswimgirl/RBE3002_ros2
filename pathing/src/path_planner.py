@@ -385,7 +385,7 @@ class PathPlanner(Node):
         
         world_path_message = Path() # make world_path_msg into a Path data type
         world_path_message.header.stamp = self.get_clock().now().to_msg()
-        world_path_message.header.frame_id = "map"
+        world_path_message.header.frame_id = "odom" # watch the frames
         world_path_message.poses = self.path_to_poses(mapdata, optimized_path)
         
         self.loginfo(f"Publishing path with {len(world_path_message.poses)} poses") # confim path opt actually works

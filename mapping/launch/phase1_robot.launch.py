@@ -91,7 +91,7 @@ def generate_launch_description():
     # driver node (client)
     driver = Node(
         package='control',
-        executable="cb_controller.py",
+        executable="tf_controller.py",
         name='driver',
         output='screen'
     )

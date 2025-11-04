@@ -282,7 +282,10 @@ class Frontiers(Node):
         dx = abs(max_x - min_x)
         dy = abs(max_y - min_y)
 
-        ratio = dx/dy
+        if dy != 0:
+            ratio = dx/dy
+        else:
+            ratio = dy/dx
         
         return ratio
 
