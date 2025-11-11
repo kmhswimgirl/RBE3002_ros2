@@ -5,7 +5,7 @@ import rclpy
 
 from rclpy.node import Node
 from nav_msgs.msg import GridCells, OccupancyGrid, Path, Odometry
-from geometry_msgs.msg import Point, PoseStamped
+from geometry_msgs.msg import Point, PoseStamped, PointStamped
 from typing import List, Tuple
 from PriorityQueue import PriorityQueue
 from rclpy.qos import QoSProfile, DurabilityPolicy
@@ -21,14 +21,18 @@ class PathPlanner(Node):
         qos = QoSProfile(depth=10)
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
 
-        qos_plan = QoSProfile(depth=1)
-        qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
+        qos_point = QoSProfile(depth=10)
+        qos_point.durability = DurabilityPolicy.VOLATILE
 
         # add visuals to rviz
         self.expanded_cells = self.create_publisher(GridCells, "/expanded_cells", qos) 
         self.frontier_cells = self.create_publisher(GridCells, "/frontier", qos)
         self.c_space = self.create_publisher(GridCells, "/path_planner/c_space", qos)
         self.robot_path = self.create_publisher(Path,'/robot_path', qos)
+
+        # testing individual sign off for Tabor... not happy
+        self.point = self.create_subscription(PointStamped, '/clicked_point', self.display_nearest_gridcell, qos_point)
+        self.cell = self.create_publisher(GridCells, '/path_planner/nearest_cell', qos)
 
         # subscribe to odom and set variables for initial position
         self.odom = self.create_subscription(Odometry, '/odom', self.update_odometry, 10)
@@ -54,6 +58,23 @@ class PathPlanner(Node):
         self.cached_map = msg
         self.map_ready = True
         self.loginfo("Map updated")
+
+    def display_nearest_gridcell(self, msg:PointStamped):
+        world_x = msg.point.x
+        world_y = msg.point.y
+
+        wc = Point()
+        wc.x = world_x
+        wc.y = world_y
+
+        nearest_cell = GridCells()
+        nearest_cell.cell_height = self.cached_map.info.resolution
+        nearest_cell.cell_width = self.cached_map.info.resolution
+        nearest_cell.header.frame_id = 'map'
+        nearest_cell.cells.append(wc)
+
+        self.cell.publish(nearest_cell)
+
     
     def update_odometry(self, msg: Odometry): # same as previously, just used a diff library 
         self.px = msg.pose.pose.position.x

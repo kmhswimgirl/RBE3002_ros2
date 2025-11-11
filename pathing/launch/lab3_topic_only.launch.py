@@ -49,13 +49,13 @@ def generate_launch_description():
         output='screen'
     )
 
-    # driver node (client)
-    driver = Node(
-        package='control',
-        executable="lab2_topic_only.py",
-        name='driver',
-        output='screen'
-    )
+    # # driver node (client)
+    # driver = Node(
+    #     package='control',
+    #     executable="lab2_topic_only.py",
+    #     name='driver',
+    #     output='screen'
+    # )
 
     # map to odom static transform
     static_tf = Node(
@@ -86,7 +86,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         path_planner,
-        driver,
+       # driver,
         rviz2,
         turtlebot,
         static_tf,
