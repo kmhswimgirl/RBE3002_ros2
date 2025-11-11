@@ -116,7 +116,7 @@ def generate_launch_description():
         robot_state_publisher_cmd,
         laser_filter,
         slam_bringup,
-        # rviz2,
+        rviz2,
         # frontier,
         path_planner,
         driver

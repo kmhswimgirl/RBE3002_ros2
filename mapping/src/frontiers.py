@@ -144,16 +144,6 @@ class Frontiers(Node):
             self.loginfo('[DEBUG]: get_largest_frontier | no cells...')
             return
         return exp_cells
-    
-    # def get_all_potential_goals(self, frontiers:List[List[Tuple[int,int]]]):
-    #     drivable_points_all = []
-    #     for cluster in frontiers:
-    #         cx, cy = self.calc_centroid(cluster)
-    #         cx, cy = int(cx), int(cy)
-    #         exp_cells = self.calc_drive_goals(self.mapdata, cluster, self.buffer)
-    #         drivable_points_all.append(exp_cells)
-
-    #     return drivable_points_all
         
     ## ------------------- 
     def navigation_update(self):
@@ -215,6 +205,7 @@ class Frontiers(Node):
 
         if largest is None or len(largest) == 0: # catch if there are no frontiers left
             self.loginfo('NAV GOAL: no frontiers found')
+            self
         else:
             gx, gy = largest[0]
 
