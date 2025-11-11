@@ -2,9 +2,9 @@ controller:
 ros__parameters:
     linear_speed: 0.5
     angular_speed: 0.1
-    linear_tolerance: 0.03
+    linear_tolerance: 0.02
     angular_tolerance: 0.02
-    path_tolerance: 0.03
+    path_tolerance: 0.02
     poses_before_goal: 2
     delay_rate: 30
 
@@ -15,7 +15,7 @@ path_planner:
 frontiers:
   ros__parameters:
     grid_square_threshold: 20
-    c_space: 7
+    c_space: 3
     scoring: 'simple'
     replan_rate: 10.0
     

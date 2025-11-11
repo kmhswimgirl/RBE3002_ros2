@@ -133,7 +133,6 @@ class Controller(Node):
         :param msg [PoseStamped] The target pose.
         """
         
-   
         goal_pos_x = msg.pose.position.x
         goal_pos_y = msg.pose.position.y
 
@@ -203,7 +202,7 @@ class Controller(Node):
             self.send_speed(0.0, 0.0)
 
     def get_next_point(self):  # iterate to the next pose in the path that was generated from path_planner
-        if self.path_to_goal and self.current_path_index < len(self.path_to_goal.poses) - 1: # stop at pose before goal
+        if self.path_to_goal and self.current_path_index < len(self.path_to_goal.poses) - 2: # stop at the pose before the goal pose
             self.current_path_index += 1
             next_pose = self.path_to_goal.poses[self.current_path_index]
             self.go_to(next_pose)

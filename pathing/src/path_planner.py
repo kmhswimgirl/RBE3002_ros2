@@ -36,7 +36,7 @@ class PathPlanner(Node):
         self.c_space = self.create_publisher(GridCells, "/path_planner/c_space", qos)
         self.robot_path = self.create_publisher(Path,'/path_planner/robot_path', qos)
 
-        # main servce call
+        # main service call
         self.path_to_drive = self.create_service(GetPlan, '/path_planner/plan_path', self.plan_path)
 
         # Subscribe to map topic
@@ -51,7 +51,7 @@ class PathPlanner(Node):
         self.map_ready = True
 
         if self.map_ready and not self.init_cspace:
-                self.calc_cspace(msg, self.c_space_val)
+                self.calc_cspace(msg, self.c_space_val, True)
                 self.init_cspace = True
 
     # --------------------- easy stuff, should not need any ros2 translating
@@ -142,7 +142,6 @@ class PathPlanner(Node):
         arrayCols = mapdata.info.width
         coord = (p[0],p[1])
 
-        # FIXED BOUNDS CHECK
         if ((p[0] >= 0 and p[0] < arrayCols) and (p[1] >= 0 and p[1] < arrayRows)):
             index = PathPlanner.grid_to_index(mapdata, coord)
             occVal = mapdata.data[index]
@@ -153,6 +152,32 @@ class PathPlanner(Node):
                 return False
         else:
             return False
+        
+    @staticmethod
+    def is_obstacle(mapdata:OccupancyGrid, p: Tuple[int, int]) -> bool:
+        """
+        A cell is an obstacle if all of these conditions are true:
+        1. It is within the boundaries of the grid;
+        2. It is a solid obstacle
+        :param mapdata [OccupancyGrid] The map information.
+        :param p       [(int, int)]    The coordinate in the grid.
+        :return        [bool]          True if the cell is a wall. False otherwise.
+        """
+        arrayRows = mapdata.info.height
+        arrayCols = mapdata.info.width
+        coord = (p[0],p[1])
+
+        if ((p[0] >= 0 and p[0] < arrayCols) and (p[1] >= 0 and p[1] < arrayRows)):
+            index = PathPlanner.grid_to_index(mapdata, coord)
+            occVal = mapdata.data[index]
+            freeThreshold = 0.196
+            if (occVal > freeThreshold and occVal !=-1): 
+                return True
+            else:
+                return False
+        else:
+            return False
+
     
     @staticmethod
     def neighbors_of_4(mapdata: OccupancyGrid, p: Tuple[int, int]) -> List[Tuple[int, int]]:
@@ -232,7 +257,7 @@ class PathPlanner(Node):
         return world_path
         
     # ------------------ C SPACE & A STAR
-    def calc_cspace(self, mapdata: OccupancyGrid, padding: int) -> OccupancyGrid:
+    def calc_cspace(self, mapdata: OccupancyGrid, padding: int, ignore_frontiers:bool) -> OccupancyGrid:
         """
         Calculates the C-Space, i.e., makes the obstacles in the map thicker.
         Publishes the list of cells that were added to the original map.
@@ -247,23 +272,36 @@ class PathPlanner(Node):
         arrayCols = mapdata.info.width
 
         self.loginfo("Calculating C-Space")
-        
-        # Iterate through each cell properly
-        for y in range(arrayRows):
-            for x in range(arrayCols):
-                # If this cell is an obstacle, inflate around it
-                if not PathPlanner.is_cell_walkable(mapdata, (x, y)):
-                    for dy in range(-padding, padding + 1):
-                        for dx in range(-padding, padding + 1):
-                            nx, ny = x + dx, y + dy
-                            # Check bounds and if neighbor is walkable in ORIGINAL map
-                            if (0 <= nx < arrayCols and 0 <= ny < arrayRows):
-                                neighbor_idx = PathPlanner.grid_to_index(mapdata, (nx, ny))
-                                # Only inflate if: 1) walkable in original, 2) not already inflated
-                                if (PathPlanner.is_cell_walkable(mapdata, (nx, ny)) and 
-                                    paddedGrid[neighbor_idx] != 100):
-                                    addedCells.append(PathPlanner.grid_to_world(mapdata, (nx, ny)))
-                                    paddedGrid[neighbor_idx] = 100
+
+        if ignore_frontiers == True:
+             for y in range(arrayRows): # iterate y
+                for x in range(arrayCols): # iterate x
+                    if PathPlanner.is_obstacle(mapdata,(x,y)): # if this cell is a wall
+                        for dy in range(-padding, padding + 1):
+                            for dx in range(-padding, padding + 1):
+                                nx, ny = x + dx, y + dy # new cell coords
+                                if (0 <= nx < arrayCols and 0 <= ny < arrayRows): # bounds check in original map
+                                    neighbor_idx = PathPlanner.grid_to_index(mapdata, (nx, ny))
+                                    if (PathPlanner.is_cell_walkable(mapdata, (nx, ny)) and paddedGrid[neighbor_idx] != 100):
+                                        addedCells.append(PathPlanner.grid_to_world(mapdata, (nx, ny)))
+                                        paddedGrid[neighbor_idx] = 100
+                        
+        elif ignore_frontiers == False:
+            # Iterate through each cell properly
+            for y in range(arrayRows):
+                for x in range(arrayCols):
+                    # If this cell is an obstacle, inflate around it
+                    if not PathPlanner.is_cell_walkable(mapdata, (x, y)):
+                        for dy in range(-padding, padding + 1):
+                            for dx in range(-padding, padding + 1):
+                                nx, ny = x + dx, y + dy
+                                # Check bounds and if neighbor is walkable in ORIGINAL map
+                                if (0 <= nx < arrayCols and 0 <= ny < arrayRows):
+                                    neighbor_idx = PathPlanner.grid_to_index(mapdata, (nx, ny))
+                                    # only inflate if: 1) walkable in original, 2) not already inflated
+                                    if (PathPlanner.is_cell_walkable(mapdata, (nx, ny)) and paddedGrid[neighbor_idx] != 100):
+                                        addedCells.append(PathPlanner.grid_to_world(mapdata, (nx, ny)))
+                                        paddedGrid[neighbor_idx] = 100
 
         paddedCells = GridCells()
         paddedCells.header = mapdata.header
@@ -281,6 +319,7 @@ class PathPlanner(Node):
         c_map.data = paddedGrid
 
         return c_map
+    
     
     def a_star(self, mapdata: OccupancyGrid, start: Tuple[int, int], goal: Tuple[int, int]) -> List[Tuple[int, int]]:
         ### REQUIRED CREDIT
@@ -364,7 +403,7 @@ class PathPlanner(Node):
         
         mapdata = self.cached_map 
 
-        cspacedata = self.calc_cspace(mapdata, self.c_space_val) # calc C space
+        cspacedata = self.calc_cspace(mapdata, self.c_space_val, True) # calc C space
 
         start = PathPlanner.world_to_grid(cspacedata, request.start.pose.position)
         goal  = PathPlanner.world_to_grid(cspacedata, request.goal.pose.position)
