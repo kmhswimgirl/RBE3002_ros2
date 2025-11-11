@@ -10,6 +10,7 @@ from scipy.spatial.transform import Rotation as R
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from tf2_geometry_msgs import PoseStamped
+import tf2_geometry_msgs
 
 from tf2_ros.transform_listener import TransformListener
 from tf2_ros.buffer import Buffer
@@ -85,6 +86,13 @@ class Controller(Node):
 
         self.cmd_vel_pub.publish(msg) 
 
+    def normalize_angle(self, angle): # yoinked from a diff version
+        while angle > math.pi:
+            angle -= 2 * math.pi
+        while angle < -math.pi:
+            angle += 2 * math.pi
+        return angle
+
     def drive(self, distance: float, linear_speed: float):
         '''
         Drives the robot in a straight line.
@@ -113,24 +121,21 @@ class Controller(Node):
         :param angular_speed [float] [rad/s] The angular speed.
         '''
         error = 10000
-        tolerance = self.angular_tolerance # radians?
-        goalAngle  = angle
+        tolerance = self.angular_tolerance
+        goalAngle = angle
 
-        # account for 0 and 2pi being the same position etc.
-        if goalAngle < 0 and abs(goalAngle) > math.pi:
-            goalAngle = 2*math.pi - goalAngle
-        elif goalAngle > 0 and goalAngle > math.pi:
-            goalAngle = goalAngle - 2*math.pi
-
-        while (abs(error) > tolerance) and rclpy.ok(): # while robot is not close enough to goal
-            if(goalAngle < self.pth):
-                self.send_speed(0, -aspeed)
-            else:
-                self.send_speed(0, aspeed)
-
-            error = self.pth - goalAngle 
+        while rclpy.ok():
+            if not self.odom_ready:
+                self.get_logger().warn('rotate: no odom, stopping')
+                self.send_speed(0.0, 0.0)
+                return
+            error = self.normalize_angle(goalAngle - self.pth)
+            if abs(error) <= tolerance:
+                break
+            direction = aspeed if error > 0 else -aspeed
+            self.send_speed(0.0, direction)
             self.rate.sleep()
-                    
+
         self.send_speed(0,0) 
 
     def go_to(self, msg: PoseStamped):
@@ -139,6 +144,7 @@ class Controller(Node):
         This method is a callback bound to a Subscriber.
         :param msg [PoseStamped] The target pose.
         """
+
         pose_in_odom = self._tf_buffer.transform(msg,'odom', rclpy.duration.Duration(seconds=1))
    
         goal_pos_x = pose_in_odom.pose.position.x

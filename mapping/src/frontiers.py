@@ -49,7 +49,7 @@ class Frontiers(Node):
         # map handling
         self.map = self.create_subscription(OccupancyGrid, '/map', self.map_callback, qos, callback_group=self.map_timer)
 
-        self.send_goal = self.create_timer(self.replan_rate, self.toggle_goal_send, callback_group=self.map_timer)
+        self.send_goal = self.create_timer(self.replan_rate, self.send_new_goal, callback_group=self.map_timer)
 
         # timer calls update nav points, which recalculates the centroids + frontiers
         self.update_nav_points = self.create_timer(1.0, self.navigation_update, callback_group=self.map_timer)
@@ -66,14 +66,18 @@ class Frontiers(Node):
         '''Update the whenever /map recieves a new message'''
         self.mapdata = msg
 
-    def toggle_goal_send(self):
+    def send_new_goal(self): # callback for publishing the goal, can handle phase 2 logic as well
         '''toggle boolean when ready to send a new nav goal'''
-        if self.phase_2 == False:
+        if self.current_goal is None:
+            self.get_logger().warn("send_new_goal: no current_goal set, skipping publish")
+            return
+        
+        if self.phase_2 == False and self.current_goal != None:
             self.loginfo("goal being published")
             self.nav_goal.publish(self.current_goal)
 
-    ## ------------- Frontier Finding Functions ------------- ##
 
+    ## ------------- Frontier Finding Functions ------------- ##
     def extract_frontier_seeds(self, mapdata: OccupancyGrid) -> List[Tuple[int,int]]:
         ''' return all cells that border free and unknown space'''
         seeds = []
@@ -116,11 +120,13 @@ class Frontiers(Node):
             num_gc = len(cluster)
             if num_gc >= self.frontier_threshold:
                 new_frontiers.append(cluster)
+
         return new_frontiers
     
     def get_largest_frontier(self, frontiers:List[List[Tuple[int,int]]]):
         if not frontiers:
             return None
+        
         sizes = [len(cluster) for cluster in frontiers]
         largest_i = sizes.index(max(sizes))
         largest_cluster = frontiers[largest_i]
@@ -138,7 +144,17 @@ class Frontiers(Node):
             self.loginfo('[DEBUG]: get_largest_frontier | no cells...')
             return
         return exp_cells
+    
+    # def get_all_potential_goals(self, frontiers:List[List[Tuple[int,int]]]):
+    #     drivable_points_all = []
+    #     for cluster in frontiers:
+    #         cx, cy = self.calc_centroid(cluster)
+    #         cx, cy = int(cx), int(cy)
+    #         exp_cells = self.calc_drive_goals(self.mapdata, cluster, self.buffer)
+    #         drivable_points_all.append(exp_cells)
 
+    #     return drivable_points_all
+        
     ## ------------------- 
     def navigation_update(self):
         '''update the map with frontiers, centroids, & drive goals'''
@@ -194,7 +210,8 @@ class Frontiers(Node):
             m.lifetime.sec = 8
             ma.markers.append(m)
 
-        largest = self.get_largest_frontier(cleaned_clusters)
+        largest = self.get_largest_frontier(cleaned_clusters) # -------------------------------- Insert new goal logic here! should probably make this a lot better...
+        # other_stuff = self.get_all_potential_goals(cleaned_clusters)
 
         if largest is None or len(largest) == 0: # catch if there are no frontiers left
             self.loginfo('NAV GOAL: no frontiers found')
@@ -303,9 +320,6 @@ class Frontiers(Node):
         v2 = abs(b[1]-a[1])
         length = math.hypot(v1, v2)
         return length
-    
-    # def is_in_c_space(self, cspace:GridCells, drive_points:List[Tuple[int, int]]):
-
 
 def main(args=None): # i think i got this right? idk
     rclpy.init(args=args)
