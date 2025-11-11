@@ -237,7 +237,6 @@ class PathPlanner(Node):
     
     
     # ------------------- ROS msg Type converting
-
     def path_to_poses(self,mapdata: OccupancyGrid, path: List[Tuple[int, int]]) -> List[PoseStamped]:
         """
         Converts the given path into a list of PoseStamped.
@@ -449,7 +448,7 @@ class PathPlanner(Node):
         
         mapdata = self.cached_map 
 
-        cspacedata = self.calc_cspace(mapdata, self.c_space_val, True) # calc C space
+        cspacedata = self.calc_cspace(mapdata, self.c_space_val, False) # calc C space
 
         start = PathPlanner.world_to_grid(cspacedata, request.start.pose.position)
         goal  = PathPlanner.world_to_grid(cspacedata, request.goal.pose.position)
@@ -465,14 +464,16 @@ class PathPlanner(Node):
         self.loginfo(f"Grid start: {start}, Grid goal: {goal}") # confirm start/goal pos
         
         path  = self.a_star(cspacedata, start, goal) # generate path with A*
-        self.loginfo(f"A* returned path with {len(path)} points")
         
-        optimized_path = PathPlanner.optimize_path(path) # optimize path by removing co-linear points
+        short_path = path[:-4]
+        self.loginfo(f"A* returned path with {len(short_path)} points")
+        
+        optimized_path = PathPlanner.optimize_path(short_path) # optimize path by removing co-linear points
         self.loginfo(f"Optimized path has {len(optimized_path)} points")
         
         world_path_message = Path() # make world_path_msg into a Path data type
         world_path_message.header.stamp = self.get_clock().now().to_msg()
-        world_path_message.header.frame_id = "odom" # watch the frames
+        world_path_message.header.frame_id = "map" # watch the frames
         world_path_message.poses = self.path_to_poses(mapdata, optimized_path)
         
         self.loginfo(f"Publishing path with {len(world_path_message.poses)} poses") # confim path opt actually works

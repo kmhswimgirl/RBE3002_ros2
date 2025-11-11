@@ -173,7 +173,7 @@ class Controller(Node):
                 self.get_next_point()
 
     def get_next_point(self):  # iterate to the next pose in the path that was generated from path_planner
-        if self.path_to_goal and self.current_path_index < len(self.path_to_goal.poses) - 1:
+        if self.path_to_goal and self.current_path_index < len(self.path_to_goal.poses) - 2: # point before end
             self.current_path_index += 1
             next_pose = self.path_to_goal.poses[self.current_path_index]
             self.go_to(next_pose)

@@ -232,8 +232,10 @@ class Frontiers(Node):
 
     def convert_to_pose(self, input_coord: Tuple):
         pose_message = PoseStamped()
-        pose_message.header.stamp = self.get_clock().now().to_msg()
-        pose_message.header.frame_id = 'map'
+
+        # pose_message.header.stamp = self.get_clock().now().to_msg()
+        
+        pose_message.header.frame_id = 'map' # FRAMES
         pose_message.pose.position.x = float(input_coord[0])
         pose_message.pose.position.y = float(input_coord[1])
 

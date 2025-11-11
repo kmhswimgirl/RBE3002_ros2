@@ -90,7 +90,7 @@ def generate_launch_description():
     )
 
     # frontier node
-    frontier = TimerAction(period=40.0, 
+    frontier = TimerAction(period=60.0, 
                            actions=[ Node(
         package='mapping',
         executable='frontiers.py',
@@ -116,7 +116,7 @@ def generate_launch_description():
         robot_state_publisher_cmd,
         laser_filter,
         slam_bringup,
-        rviz2,
+        # rviz2,
         # frontier,
         path_planner,
         driver

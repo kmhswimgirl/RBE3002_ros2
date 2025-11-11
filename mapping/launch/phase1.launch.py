@@ -129,8 +129,8 @@ def generate_launch_description():
         package='mapping',
         executable='frontiers.py',
         name='frontier_debug',
-        output='screen'
-        # parameters=[{'use_sim_time': use_sim_time}]
+        output='screen',
+        parameters=[{'use_sim_time': use_sim_time}]
     )])
 
     # laser filter for SLAM
