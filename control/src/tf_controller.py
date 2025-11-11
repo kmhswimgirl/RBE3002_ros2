@@ -10,7 +10,7 @@ from scipy.spatial.transform import Rotation as R
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from tf2_geometry_msgs import PoseStamped
-import tf2_geometry_msgs
+# import tf2_geometry_msgs
 
 from tf2_ros.transform_listener import TransformListener
 from tf2_ros.buffer import Buffer
@@ -66,7 +66,6 @@ class Controller(Node):
 
         # drive state publisher.. true or false basically using an action at this point lmao
         # self.drive_state = self.create_publisher(bool, '/drive_state', 10)
-
         # self.drive_update = self.create_timer(0.5,self.update_drive_state, callback_group=self.cb_group)
 
         self.path_client = self.create_client(GetPlan, '/path_planner/plan_path')
@@ -145,13 +144,12 @@ class Controller(Node):
         self.send_speed(0,0) 
 
     def go_to(self, msg: PoseStamped):
-        
         """
         Calls rotate(), drive(), and rotate() to attain a given pose.
         This method is a callback bound to a Subscriber.
         :param msg [PoseStamped] The target pose.
         """
-        self.drive_flag = True # do not get a noew path
+        self.drive_flag = True # do not get a now path
         pose_in_odom = self._tf_buffer.transform(msg,'odom', rclpy.duration.Duration(seconds=1))
    
         goal_pos_x = pose_in_odom.pose.position.x
@@ -176,12 +174,9 @@ class Controller(Node):
         
         if self.drive_flag: # flag for not ready to get another path
             self.get_logger().warn("still driving... please wait")
+            
             return
         
-        self.get_logger().info('service callback called!')
-        self.get_logger().info('stopping turtlebot')
-        self.send_speed(0.0, 0.0)
-
         # start pose from current odom
         start = PoseStamped()
         start.header.frame_id = "odom"  # watch the frames
