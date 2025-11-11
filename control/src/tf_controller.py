@@ -174,7 +174,6 @@ class Controller(Node):
         
         if self.drive_flag: # flag for not ready to get another path
             self.get_logger().warn("still driving... please wait")
-            
             return
         
         # start pose from current odom
@@ -240,6 +239,7 @@ class Controller(Node):
             self.path_to_goal = None
             self.current_path_index = 0
     
+
     # def update_drive_state(self):
     #     self.drive_state.publish(self.drive)
     
