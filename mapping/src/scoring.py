@@ -17,7 +17,10 @@ class Scoring(Node):
 
         self.map = self.create_subscription(OccupancyGrid, "/map", self.map_callback, 10)
         self.frontiers = self.create_subscription(FrontierArray, '/frontiers', self.main_scoring, 10)
+        
 
+
+        
     def map_callback(self, map: OccupancyGrid):
         self.mapdata = map
 

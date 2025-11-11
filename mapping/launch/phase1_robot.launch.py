@@ -16,7 +16,6 @@ def generate_launch_description():
     rviz_config_file = os.path.join(get_package_share_directory('mapping'), 'rviz', 'lab4_slam.rviz')
     map_dir = os.path.join(this_dir, 'maps') 
 
-    
     # variables
     use_sim_time = LaunchConfiguration('use_sim_time', default='false') # false for real robot
     slam = LaunchConfiguration('slam', default='True')

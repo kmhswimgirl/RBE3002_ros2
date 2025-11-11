@@ -10,6 +10,7 @@ from geometry_msgs.msg import Point, PoseStamped
 from typing import List, Tuple
 from PriorityQueue import PriorityQueue
 from rclpy.qos import QoSProfile, DurabilityPolicy
+from queue import Queue
 
 class PathPlanner(Node):
     def __init__(self):
@@ -54,7 +55,7 @@ class PathPlanner(Node):
                 self.calc_cspace(msg, self.c_space_val, True)
                 self.init_cspace = True
 
-    # --------------------- easy stuff, should not need any ros2 translating
+    # --------------------- Static Map Methods
     @staticmethod
     def grid_to_index(mapdata: OccupancyGrid, p: Tuple[int, int]) -> int:
         """
@@ -235,7 +236,7 @@ class PathPlanner(Node):
         return neighborCells8
     
     
-    # ------------------- medium difficulty, might need a few tweaks
+    # ------------------- ROS msg Type converting
 
     def path_to_poses(self,mapdata: OccupancyGrid, path: List[Tuple[int, int]]) -> List[PoseStamped]:
         """
@@ -256,7 +257,7 @@ class PathPlanner(Node):
 
         return world_path
         
-    # ------------------ C SPACE & A STAR
+    # ------------------ C SPACE & A STAR & Nearest Walkable Algos
     def calc_cspace(self, mapdata: OccupancyGrid, padding: int, ignore_frontiers:bool) -> OccupancyGrid:
         """
         Calculates the C-Space, i.e., makes the obstacles in the map thicker.
@@ -319,7 +320,6 @@ class PathPlanner(Node):
         c_map.data = paddedGrid
 
         return c_map
-    
     
     def a_star(self, mapdata: OccupancyGrid, start: Tuple[int, int], goal: Tuple[int, int]) -> List[Tuple[int, int]]:
         ### REQUIRED CREDIT
@@ -392,7 +392,53 @@ class PathPlanner(Node):
 
         return path # Return the robot's path, in grid coordinates
 
-    # ---------- Plan the Path
+    def nearest_walkable_cell(self, mapdata: OccupancyGrid, grid_cell:Tuple[int, int]): # please work...
+        # queue
+        # take top of queue, return neighbors of 8
+            # mark cell as visited
+        # for loop through all neighbors and see if any are walkable, 
+            # if walkable, that is the goal
+            # if not walkable and not visited add to search list
+            
+        def in_bounds(mapdata:OccupancyGrid, cell:Tuple[int, int]) -> bool: # helper for checking if searched cells are in bounds
+            if not isinstance(cell, tuple) or len(cell) != 2:
+                return False
+            x, y = cell
+            if not isinstance(x, int) or not isinstance(y, int):
+                return False
+            # width = number of columns (x), height = number of rows (y)
+            return 0 <= x < mapdata.info.width and 0 <= y < mapdata.info.height
+
+        if self.is_cell_walkable(mapdata, grid_cell): # start cell is walkable case
+            return grid_cell
+        
+        start = grid_cell 
+        searched = []
+        not_searched = [] 
+        not_searched.append(start)
+
+        dir_four = [(1,0), (0,1), (0,-1), (-1, 0)]
+
+        while len(not_searched) > 0:
+            current = not_searched.pop(0)
+            searched.append(current) # add current cell to searched list
+
+            for (dx, dy) in dir_four:
+                nx = dx + current[0]
+                ny = dy + current[1]
+
+                if in_bounds(mapdata, (nx, ny)):
+                    is_goal = self.is_cell_walkable(mapdata, (nx, ny))
+
+                    if is_goal == True: # walkable cell found!
+                        return (nx,ny)
+                    
+                    elif is_goal == False: # not walkable cell
+                        if (nx, ny) not in searched and (nx, ny) not in not_searched: # has not been current yet
+                            not_searched.append((nx, ny))
+                            continue   
+
+    # ---------- Plan the Path --------- #
     def plan_path(self, request, response):
         self.loginfo(f"Start: ({request.start.pose.position.x}, {request.start.pose.position.y}, Goal: ({request.goal.pose.position.x}, {request.goal.pose.position.y})")
         
@@ -408,9 +454,14 @@ class PathPlanner(Node):
         start = PathPlanner.world_to_grid(cspacedata, request.start.pose.position)
         goal  = PathPlanner.world_to_grid(cspacedata, request.goal.pose.position)
 
-        if PathPlanner.is_cell_walkable(cspacedata, goal) == False:
-            self.loginfo("point unreachable")
+        if PathPlanner.is_cell_walkable(cspacedata, start) == False:
+            self.loginfo("[ERROR]: Starting in C Space.")
 
+        if PathPlanner.is_cell_walkable(cspacedata, goal) == False:
+            self.loginfo("point unreachable, recalculating...")
+            goal = self.nearest_walkable_cell(cspacedata, goal)
+            self.loginfo(f"new goal calculated: {goal}")
+        
         self.loginfo(f"Grid start: {start}, Grid goal: {goal}") # confirm start/goal pos
         
         path  = self.a_star(cspacedata, start, goal) # generate path with A*
