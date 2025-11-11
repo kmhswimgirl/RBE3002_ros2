@@ -25,8 +25,8 @@ class Controller(Node):
                 ('angular_speed', 0.5),
                 ('linear_speed', 0.1),
                 ('angular_tolerance', 0.02), 
-                ('linear_tolerance', 0.03),
-                ('path_tolerance', 0.03),
+                ('linear_tolerance', 0.02),
+                ('path_tolerance', 0.02),
                 ('poses_before_goal', 1),
                 ('delay_rate', 30)
             ])
@@ -53,6 +53,7 @@ class Controller(Node):
         self.stop_before_goal = self.get_parameter('poses_before_goal').value
 
         self.odom_ready = False
+        self.drive_flag = False # false = can get new path, true = cannot get new path
 
         self.cb_group = ReentrantCallbackGroup() # allow for multiple things at once
 
@@ -62,6 +63,11 @@ class Controller(Node):
         self.rviz_goal = self.create_subscription(PoseStamped, '/move_base_simple/goal', self.get_path_from_planner, 10, callback_group=self.cb_group)
         self.sub_goal = self.create_subscription(PoseStamped, '/nav_goal', self.get_path_from_planner, 10, callback_group=self.cb_group)
         self.cmd_vel_pub = self.create_publisher(TwistStamped, '/cmd_vel', 10)
+
+        # drive state publisher.. true or false basically using an action at this point lmao
+        # self.drive_state = self.create_publisher(bool, '/drive_state', 10)
+
+        # self.drive_update = self.create_timer(0.5,self.update_drive_state, callback_group=self.cb_group)
 
         self.path_client = self.create_client(GetPlan, '/path_planner/plan_path')
 
@@ -139,12 +145,13 @@ class Controller(Node):
         self.send_speed(0,0) 
 
     def go_to(self, msg: PoseStamped):
+        
         """
         Calls rotate(), drive(), and rotate() to attain a given pose.
         This method is a callback bound to a Subscriber.
         :param msg [PoseStamped] The target pose.
         """
-
+        self.drive_flag = True # do not get a noew path
         pose_in_odom = self._tf_buffer.transform(msg,'odom', rclpy.duration.Duration(seconds=1))
    
         goal_pos_x = pose_in_odom.pose.position.x
@@ -167,7 +174,13 @@ class Controller(Node):
             self.get_logger().warn("No odometry data yet!")
             return
         
+        if self.drive_flag: # flag for not ready to get another path
+            self.get_logger().warn("still driving... please wait")
+            return
+        
         self.get_logger().info('service callback called!')
+        self.get_logger().info('stopping turtlebot')
+        self.send_speed(0.0, 0.0)
 
         # start pose from current odom
         start = PoseStamped()
@@ -210,22 +223,30 @@ class Controller(Node):
                 self.get_logger().info(f"Received path with {len(self.path_to_goal.poses)} poses")
             else:
                 self.get_logger().warn("path empty")
+                self.drive_flag = False
                 self.send_speed(0.0, 0.0)
+
         except Exception as e:
             self.get_logger().error(f"failed to get path {e}")
+            self.drive_flag = False
             self.send_speed(0.0, 0.0)
 
     def get_next_point(self): # iterate to the next pose in the path that was generated from path_planner
         if self.path_to_goal and self.current_path_index < len(self.path_to_goal.poses) - 1: # stop at pose before goal
             self.current_path_index += 1
+            self.drive_flag = True # do not get new path
             next_pose = self.path_to_goal.poses[self.current_path_index]
             self.go_to(next_pose)
             self.get_logger().info(f"Moving to waypoint {self.current_path_index}/{len(self.path_to_goal.poses)- self.stop_before_goal}")
         else:
             self.get_logger().info("Reached final destination!")
             self.send_speed(0.0, 0.0)
+            self.drive_flag = False # false = ready for path, true = not ready for path
             self.path_to_goal = None
             self.current_path_index = 0
+    
+    # def update_drive_state(self):
+    #     self.drive_state.publish(self.drive)
     
 def main(args=None): # i think i got this right? idk
     rclpy.init(args=args)
