@@ -4,7 +4,7 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, TimerAction
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 
@@ -14,12 +14,12 @@ def generate_launch_description():
     this_dir = os.path.join(get_package_share_directory('mapping'))
     tb3_gz_pkg = os.path.join(get_package_share_directory('turtlebot3_gazebo'), 'launch')
     rviz_config_file = os.path.join(get_package_share_directory('mapping'), 'rviz', 'lab4_slam.rviz')
-    # sim_pkg_launch = os.path.join(get_package_share_directory('simulation'), 'launch')
     map_dir = os.path.join(this_dir, 'maps') 
 
     # variables
     use_sim_time = LaunchConfiguration('use_sim_time', default='false') # false for real robot
     slam = LaunchConfiguration('slam', default='True')
+    config_file =  LaunchConfiguration('config_file',default=os.path.join(get_package_share_directory('mapping'), 'config', 'tb3_nav.yaml'))
     config_file =  LaunchConfiguration('config_file',default=os.path.join(get_package_share_directory('mapping'), 'config', 'tb3_nav.yaml'))
 
     # launch arguments
@@ -84,19 +84,19 @@ def generate_launch_description():
     # driver node (client)
     driver = Node(
         package='control',
-        executable="cb_controller.py",
+        executable="tf_controller.py",
         name='driver',
         output='screen'
     )
 
-    # # frontier node
-    # frontier = TimerAction(period=20.0, 
-    #                        actions=[ Node(
-    #     package='mapping',
-    #     executable='frontiers.py',
-    #     name='frontier_debug',
-    #     output='screen'
-    # )])
+    # frontier node
+    frontier = TimerAction(period=60.0, 
+                           actions=[ Node(
+        package='mapping',
+        executable='frontiers.py',
+        name='frontier_debug',
+        output='screen'
+    )])
 
     # laser filter for SLAM
     laser_filter = Node(
@@ -114,9 +114,9 @@ def generate_launch_description():
         sim_time,
         static_tf,
         robot_state_publisher_cmd,
-        rviz2,
         laser_filter,
         slam_bringup,
+        rviz2,
         # frontier,
         path_planner,
         driver

@@ -39,6 +39,13 @@ def generate_launch_description():
             os.path.join(sim_pkg_launch,'world_test.launch.py')
         )
     )
+
+    # simulation pkg that really just invokes my MQP stuff lmao
+    mqp_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(sim_pkg_launch,'test_field.launch.py')
+        )
+    )
     
     # robot state publisher
     robot_state_publisher_cmd = IncludeLaunchDescription(
@@ -54,11 +61,17 @@ def generate_launch_description():
             os.path.join(tb3_gz_pkg, 'spawn_turtlebot3.launch.py')
         ),
         launch_arguments={
-            'x_pose': '0.1',
+            'x_pose': '0.15',
             'y_pose': '0.0',
             'use_sim_time': 'true'
         }.items()
     )
+
+    # start coords for sim worlds: 
+        # small field:  x: 0.15, y: 0.0
+        # mqp sensor test: x: 1, y: -1
+        # 
+
 
     # map to odom static transform
     static_tf = Node(
@@ -97,15 +110,17 @@ def generate_launch_description():
         package='pathing',
         executable='path_planner.py',
         name='a_star',
-        output='screen'
+        output='screen',
+        parameters=[{'use_sim_time': use_sim_time}]
     )
 
     # driver node (client)
     driver = Node(
         package='control',
-        executable="cb_controller.py",
+        executable="tf_controller.py",
         name='driver',
-        output='screen'
+        output='screen',
+        parameters=[{'use_sim_time': use_sim_time}]
     )
 
     # frontier node
@@ -114,7 +129,8 @@ def generate_launch_description():
         package='mapping',
         executable='frontiers.py',
         name='frontier_debug',
-        output='screen'
+        output='screen',
+        parameters=[{'use_sim_time': use_sim_time}]
     )])
 
     # laser filter for SLAM
@@ -132,6 +148,7 @@ def generate_launch_description():
         params,
         sim_time,
         small_field_launch,
+        # mqp_launch,
         static_tf,
         robot_state_publisher_cmd,
         spawn_turtlebot_cmd,

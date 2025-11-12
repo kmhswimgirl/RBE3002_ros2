@@ -10,17 +10,25 @@ from geometry_msgs.msg import Point, PoseStamped
 from typing import List, Tuple
 from PriorityQueue import PriorityQueue
 from rclpy.qos import QoSProfile, DurabilityPolicy
+from queue import Queue
 
 class PathPlanner(Node):
     def __init__(self):
         super().__init__('path_planner') # initialize node
+
+        self.declare_parameters(
+            namespace='',
+            parameters=[
+                ('c_space', 5)
+            ])
+
         self.loginfo = self.get_logger().info
 
         # QoS config for c-space?
         qos = QoSProfile(depth=100)
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
 
-        self.c_space_val = 4
+        self.c_space_val = self.get_parameter('c_space').value
         self.init_cspace = False
 
         # add visuals to rviz
@@ -29,7 +37,7 @@ class PathPlanner(Node):
         self.c_space = self.create_publisher(GridCells, "/path_planner/c_space", qos)
         self.robot_path = self.create_publisher(Path,'/path_planner/robot_path', qos)
 
-        # main servce call
+        # main service call
         self.path_to_drive = self.create_service(GetPlan, '/path_planner/plan_path', self.plan_path)
 
         # Subscribe to map topic
@@ -44,10 +52,10 @@ class PathPlanner(Node):
         self.map_ready = True
 
         if self.map_ready and not self.init_cspace:
-                self.calc_cspace(msg, self.c_space_val)
+                self.calc_cspace(msg, self.c_space_val, True)
                 self.init_cspace = True
 
-    # --------------------- easy stuff, should not need any ros2 translating
+    # --------------------- Static Map Methods
     @staticmethod
     def grid_to_index(mapdata: OccupancyGrid, p: Tuple[int, int]) -> int:
         """
@@ -135,7 +143,6 @@ class PathPlanner(Node):
         arrayCols = mapdata.info.width
         coord = (p[0],p[1])
 
-        # FIXED BOUNDS CHECK
         if ((p[0] >= 0 and p[0] < arrayCols) and (p[1] >= 0 and p[1] < arrayRows)):
             index = PathPlanner.grid_to_index(mapdata, coord)
             occVal = mapdata.data[index]
@@ -146,6 +153,32 @@ class PathPlanner(Node):
                 return False
         else:
             return False
+        
+    @staticmethod
+    def is_obstacle(mapdata:OccupancyGrid, p: Tuple[int, int]) -> bool:
+        """
+        A cell is an obstacle if all of these conditions are true:
+        1. It is within the boundaries of the grid;
+        2. It is a solid obstacle
+        :param mapdata [OccupancyGrid] The map information.
+        :param p       [(int, int)]    The coordinate in the grid.
+        :return        [bool]          True if the cell is a wall. False otherwise.
+        """
+        arrayRows = mapdata.info.height
+        arrayCols = mapdata.info.width
+        coord = (p[0],p[1])
+
+        if ((p[0] >= 0 and p[0] < arrayCols) and (p[1] >= 0 and p[1] < arrayRows)):
+            index = PathPlanner.grid_to_index(mapdata, coord)
+            occVal = mapdata.data[index]
+            freeThreshold = 0.196
+            if (occVal > freeThreshold and occVal !=-1): 
+                return True
+            else:
+                return False
+        else:
+            return False
+
     
     @staticmethod
     def neighbors_of_4(mapdata: OccupancyGrid, p: Tuple[int, int]) -> List[Tuple[int, int]]:
@@ -203,8 +236,7 @@ class PathPlanner(Node):
         return neighborCells8
     
     
-    # ------------------- medium difficulty, might need a few tweaks
-
+    # ------------------- ROS msg Type converting
     def path_to_poses(self,mapdata: OccupancyGrid, path: List[Tuple[int, int]]) -> List[PoseStamped]:
         """
         Converts the given path into a list of PoseStamped.
@@ -224,9 +256,8 @@ class PathPlanner(Node):
 
         return world_path
         
-    # ------------------ C SPACE & A STAR
-
-    def calc_cspace(self, mapdata: OccupancyGrid, padding: int) -> OccupancyGrid:
+    # ------------------ C SPACE & A STAR & Nearest Walkable Algos
+    def calc_cspace(self, mapdata: OccupancyGrid, padding: int, ignore_frontiers:bool) -> OccupancyGrid:
         """
         Calculates the C-Space, i.e., makes the obstacles in the map thicker.
         Publishes the list of cells that were added to the original map.
@@ -241,23 +272,36 @@ class PathPlanner(Node):
         arrayCols = mapdata.info.width
 
         self.loginfo("Calculating C-Space")
-        
-        # Iterate through each cell properly
-        for y in range(arrayRows):
-            for x in range(arrayCols):
-                # If this cell is an obstacle, inflate around it
-                if not PathPlanner.is_cell_walkable(mapdata, (x, y)):
-                    for dy in range(-padding, padding + 1):
-                        for dx in range(-padding, padding + 1):
-                            nx, ny = x + dx, y + dy
-                            # Check bounds and if neighbor is walkable in ORIGINAL map
-                            if (0 <= nx < arrayCols and 0 <= ny < arrayRows):
-                                neighbor_idx = PathPlanner.grid_to_index(mapdata, (nx, ny))
-                                # Only inflate if: 1) walkable in original, 2) not already inflated
-                                if (PathPlanner.is_cell_walkable(mapdata, (nx, ny)) and 
-                                    paddedGrid[neighbor_idx] != 100):
-                                    addedCells.append(PathPlanner.grid_to_world(mapdata, (nx, ny)))
-                                    paddedGrid[neighbor_idx] = 100
+
+        if ignore_frontiers == True:
+             for y in range(arrayRows): # iterate y
+                for x in range(arrayCols): # iterate x
+                    if PathPlanner.is_obstacle(mapdata,(x,y)): # if this cell is a wall
+                        for dy in range(-padding, padding + 1):
+                            for dx in range(-padding, padding + 1):
+                                nx, ny = x + dx, y + dy # new cell coords
+                                if (0 <= nx < arrayCols and 0 <= ny < arrayRows): # bounds check in original map
+                                    neighbor_idx = PathPlanner.grid_to_index(mapdata, (nx, ny))
+                                    if (PathPlanner.is_cell_walkable(mapdata, (nx, ny)) and paddedGrid[neighbor_idx] != 100):
+                                        addedCells.append(PathPlanner.grid_to_world(mapdata, (nx, ny)))
+                                        paddedGrid[neighbor_idx] = 100
+                        
+        elif ignore_frontiers == False:
+            # Iterate through each cell properly
+            for y in range(arrayRows):
+                for x in range(arrayCols):
+                    # If this cell is an obstacle, inflate around it
+                    if not PathPlanner.is_cell_walkable(mapdata, (x, y)):
+                        for dy in range(-padding, padding + 1):
+                            for dx in range(-padding, padding + 1):
+                                nx, ny = x + dx, y + dy
+                                # Check bounds and if neighbor is walkable in ORIGINAL map
+                                if (0 <= nx < arrayCols and 0 <= ny < arrayRows):
+                                    neighbor_idx = PathPlanner.grid_to_index(mapdata, (nx, ny))
+                                    # only inflate if: 1) walkable in original, 2) not already inflated
+                                    if (PathPlanner.is_cell_walkable(mapdata, (nx, ny)) and paddedGrid[neighbor_idx] != 100):
+                                        addedCells.append(PathPlanner.grid_to_world(mapdata, (nx, ny)))
+                                        paddedGrid[neighbor_idx] = 100
 
         paddedCells = GridCells()
         paddedCells.header = mapdata.header
@@ -267,8 +311,6 @@ class PathPlanner(Node):
         paddedCells.header.frame_id = "map"
         
         self.c_space.publish(paddedCells)
-
-        # self.loginfo(f"Publishing {len(addedCells)} C-space cells")
 
         # more ros2 type annoyances...
         c_map = OccupancyGrid()
@@ -349,8 +391,53 @@ class PathPlanner(Node):
 
         return path # Return the robot's path, in grid coordinates
 
-    # ---------- Plan the Path
+    def nearest_walkable_cell(self, mapdata: OccupancyGrid, grid_cell:Tuple[int, int]): # please work...
+        # queue
+        # take top of queue, return neighbors of 8
+            # mark cell as visited
+        # for loop through all neighbors and see if any are walkable, 
+            # if walkable, that is the goal
+            # if not walkable and not visited add to search list
+            
+        def in_bounds(mapdata:OccupancyGrid, cell:Tuple[int, int]) -> bool: # helper for checking if searched cells are in bounds
+            if not isinstance(cell, tuple) or len(cell) != 2:
+                return False
+            x, y = cell
+            if not isinstance(x, int) or not isinstance(y, int):
+                return False
+            # width = number of columns (x), height = number of rows (y)
+            return 0 <= x < mapdata.info.width and 0 <= y < mapdata.info.height
 
+        if self.is_cell_walkable(mapdata, grid_cell): # start cell is walkable case
+            return grid_cell
+        
+        start = grid_cell 
+        searched = []
+        not_searched = [] 
+        not_searched.append(start)
+
+        dir_four = [(1,0), (0,1), (0,-1), (-1, 0)]
+
+        while len(not_searched) > 0:
+            current = not_searched.pop(0)
+            searched.append(current) # add current cell to searched list
+
+            for (dx, dy) in dir_four:
+                nx = dx + current[0]
+                ny = dy + current[1]
+
+                if in_bounds(mapdata, (nx, ny)):
+                    is_goal = self.is_cell_walkable(mapdata, (nx, ny))
+
+                    if is_goal == True: # walkable cell found!
+                        return (nx,ny)
+                    
+                    elif is_goal == False: # not walkable cell
+                        if (nx, ny) not in searched and (nx, ny) not in not_searched: # has not been current yet
+                            not_searched.append((nx, ny))
+                            continue   
+
+    # ---------- Plan the Path --------- #
     def plan_path(self, request, response):
         self.loginfo(f"Start: ({request.start.pose.position.x}, {request.start.pose.position.y}, Goal: ({request.goal.pose.position.x}, {request.goal.pose.position.y})")
         
@@ -361,24 +448,32 @@ class PathPlanner(Node):
         
         mapdata = self.cached_map 
 
-        cspacedata = self.calc_cspace(mapdata, self.c_space_val) # calc C space
-        start = PathPlanner.world_to_grid(mapdata, request.start.pose.position)
-        goal  = PathPlanner.world_to_grid(mapdata, request.goal.pose.position)
+        cspacedata = self.calc_cspace(mapdata, self.c_space_val, False) # calc C space
 
-        if PathPlanner.is_cell_walkable(mapdata, goal) == False:
-            self.loginfo("point unreachable")
+        start = PathPlanner.world_to_grid(cspacedata, request.start.pose.position)
+        goal  = PathPlanner.world_to_grid(cspacedata, request.goal.pose.position)
 
+        if PathPlanner.is_cell_walkable(cspacedata, start) == False:
+            self.loginfo("[ERROR]: Starting in C Space.")
+
+        if PathPlanner.is_cell_walkable(cspacedata, goal) == False:
+            self.loginfo("point unreachable, recalculating...")
+            goal = self.nearest_walkable_cell(cspacedata, goal)
+            self.loginfo(f"new goal calculated: {goal}")
+        
         self.loginfo(f"Grid start: {start}, Grid goal: {goal}") # confirm start/goal pos
         
         path  = self.a_star(cspacedata, start, goal) # generate path with A*
-        self.loginfo(f"A* returned path with {len(path)} points")
         
-        optimized_path = PathPlanner.optimize_path(path) # optimize path by removing co-linear points
+        short_path = path[:-4]
+        self.loginfo(f"A* returned path with {len(short_path)} points")
+        
+        optimized_path = PathPlanner.optimize_path(short_path) # optimize path by removing co-linear points
         self.loginfo(f"Optimized path has {len(optimized_path)} points")
         
         world_path_message = Path() # make world_path_msg into a Path data type
         world_path_message.header.stamp = self.get_clock().now().to_msg()
-        world_path_message.header.frame_id = "map"
+        world_path_message.header.frame_id = "map" # watch the frames
         world_path_message.poses = self.path_to_poses(mapdata, optimized_path)
         
         self.loginfo(f"Publishing path with {len(world_path_message.poses)} poses") # confim path opt actually works
