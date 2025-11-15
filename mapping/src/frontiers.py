@@ -12,6 +12,8 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from map_methods import MapMethods
 from rclpy.executors import MultiThreadedExecutor
 
+from nav2_msgs.srv import SaveMap
+
 class Frontiers(Node):
     def __init__(self):
         super().__init__('frontiers')
@@ -22,7 +24,8 @@ class Frontiers(Node):
                 ('grid_square_threshold', 15),
                 ('c_space', 2),
                 ('c_space_buffer', 0),
-                ('replan_rate', 10.0)
+                ('replan_rate', 10.0),
+                ('phase_2', True)
             ])
 
         self.loginfo = self.get_logger().info
@@ -39,8 +42,10 @@ class Frontiers(Node):
 
         self.mapdata = None
         self.goal_sent = False
-        self.phase_2 = False
+        self.phase_2 = self.get_parameter('phase_2').value
         self.current_goal = None
+
+        self.start_position = PoseStamped()
         
         # need map and nav update
         # --> CB group, same as L2
@@ -48,8 +53,8 @@ class Frontiers(Node):
 
         # map handling
         self.map = self.create_subscription(OccupancyGrid, '/map', self.map_callback, qos, callback_group=self.map_timer)
-
         self.send_goal = self.create_timer(self.replan_rate, self.send_new_goal, callback_group=self.map_timer)
+        self.map_saver = self.create_client(SaveMap, '/slam_toolbox/save_map')
 
         # timer calls update nav points, which recalculates the centroids + frontiers
         self.update_nav_points = self.create_timer(1.0, self.navigation_update, callback_group=self.map_timer)
@@ -62,6 +67,8 @@ class Frontiers(Node):
         self.centroids = self.create_publisher(MarkerArray, '/centroids', qos)
         self.drive_points = self.create_publisher(MarkerArray, 'frontiers/drive_points', qos)
 
+
+
     def map_callback(self, msg: OccupancyGrid): # maybe working function to use whenever the map gets changes (or when you re call the plan_path service)
         '''Update the whenever /map recieves a new message'''
         self.mapdata = msg
@@ -71,11 +78,19 @@ class Frontiers(Node):
         if self.current_goal is None:
             self.get_logger().warn("send_new_goal: no current_goal set, skipping publish")
             return
-        
-        if self.phase_2 == False and self.current_goal != None:
+        elif self.phase_2 == False and self.current_goal != None:
             self.loginfo("goal being published")
-            self.nav_goal.publish(self.current_goal)
-
+            self.nav_goal.publish(self.current_goal)    
+        elif self.phase_2 == True:
+            self.phase_2_method()
+    
+    def phase_2_method(self):
+        self.map_saver.call_async()
+        start_pos = PoseStamped()
+        start_pos.header.frame_id = 'map'
+        start_pos.pose.position.x = 0.0
+        start_pos.pose.position.y = 0.0
+        self.nav_goal.publish(start_pos)
 
     ## ------------- Frontier Finding Functions ------------- ##
     def extract_frontier_seeds(self, mapdata: OccupancyGrid) -> List[Tuple[int,int]]:
@@ -205,7 +220,8 @@ class Frontiers(Node):
 
         if largest is None or len(largest) == 0: # catch if there are no frontiers left
             self.loginfo('NAV GOAL: no frontiers found')
-            self
+            self.phase_2 = True
+
         else:
             gx, gy = largest[0]
 

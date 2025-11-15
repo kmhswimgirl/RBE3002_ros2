@@ -149,7 +149,7 @@ class Controller(Node):
         This method is a callback bound to a Subscriber.
         :param msg [PoseStamped] The target pose.
         """
-        self.drive_flag = True # do not get a now path
+        self.drive_flag = True # do not get a new path
         pose_in_odom = self._tf_buffer.transform(msg,'odom', rclpy.duration.Duration(seconds=1))
    
         goal_pos_x = pose_in_odom.pose.position.x
@@ -191,7 +191,8 @@ class Controller(Node):
         start.pose.orientation.z = quat[2]
         start.pose.orientation.w = quat[3]
 
-        goal = msg  # The goal from RViz
+        start = self._tf_buffer.transform(start, 'map', rclpy.duration.Duration(seconds=1)) # transform pose to map frame
+        goal = msg  # The goal from RViz or Frontiers.py
 
         path_req = GetPlan.Request()
         path_req.start = start
@@ -200,7 +201,7 @@ class Controller(Node):
 
         while not self.path_client.wait_for_service(timeout_sec=1.0): # wait for service
             self.get_logger().info("waiting for path")
-            self.send_speed(0.0, 0.0)
+            # self.send_speed(0.0, 0.0)
 
         planned_path_future = self.path_client.call_async(path_req)
         planned_path_future.add_done_callback(self.handle_path_response)
@@ -218,17 +219,17 @@ class Controller(Node):
             else:
                 self.get_logger().warn("path empty")
                 self.drive_flag = False
-                self.send_speed(0.0, 0.0)
+                # self.send_speed(0.0, 0.0)
 
         except Exception as e:
             self.get_logger().error(f"failed to get path {e}")
             self.drive_flag = False
-            self.send_speed(0.0, 0.0)
+            # self.send_speed(0.0, 0.0)
 
     def get_next_point(self): # iterate to the next pose in the path that was generated from path_planner
         if self.path_to_goal and self.current_path_index < len(self.path_to_goal.poses) - 1: # stop at pose before goal
-            self.current_path_index += 1
             self.drive_flag = True # do not get new path
+            self.current_path_index += 1
             next_pose = self.path_to_goal.poses[self.current_path_index]
             self.go_to(next_pose)
             self.get_logger().info(f"Moving to waypoint {self.current_path_index}/{len(self.path_to_goal.poses)- self.stop_before_goal}")
@@ -238,10 +239,6 @@ class Controller(Node):
             self.drive_flag = False # false = ready for path, true = not ready for path
             self.path_to_goal = None
             self.current_path_index = 0
-    
-
-    # def update_drive_state(self):
-    #     self.drive_state.publish(self.drive)
     
 def main(args=None): # i think i got this right? idk
     rclpy.init(args=args)

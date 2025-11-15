@@ -10,7 +10,6 @@ from geometry_msgs.msg import Point, PoseStamped
 from typing import List, Tuple
 from PriorityQueue import PriorityQueue
 from rclpy.qos import QoSProfile, DurabilityPolicy
-from queue import Queue
 
 class PathPlanner(Node):
     def __init__(self):
@@ -19,7 +18,8 @@ class PathPlanner(Node):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('c_space', 5)
+                ('c_space', 5),
+                ('ignore_frontiers', True)
             ])
 
         self.loginfo = self.get_logger().info
@@ -392,19 +392,9 @@ class PathPlanner(Node):
         return path # Return the robot's path, in grid coordinates
 
     def nearest_walkable_cell(self, mapdata: OccupancyGrid, grid_cell:Tuple[int, int]): # please work...
-        # queue
-        # take top of queue, return neighbors of 8
-            # mark cell as visited
-        # for loop through all neighbors and see if any are walkable, 
-            # if walkable, that is the goal
-            # if not walkable and not visited add to search list
             
         def in_bounds(mapdata:OccupancyGrid, cell:Tuple[int, int]) -> bool: # helper for checking if searched cells are in bounds
-            if not isinstance(cell, tuple) or len(cell) != 2:
-                return False
             x, y = cell
-            if not isinstance(x, int) or not isinstance(y, int):
-                return False
             # width = number of columns (x), height = number of rows (y)
             return 0 <= x < mapdata.info.width and 0 <= y < mapdata.info.height
 
@@ -455,6 +445,8 @@ class PathPlanner(Node):
 
         if PathPlanner.is_cell_walkable(cspacedata, start) == False:
             self.loginfo("[ERROR]: Starting in C Space.")
+            start = self.nearest_walkable_cell(cspacedata, start)
+            self.loginfo(f"new start position calculated: {start}")
 
         if PathPlanner.is_cell_walkable(cspacedata, goal) == False:
             self.loginfo("point unreachable, recalculating...")
@@ -464,9 +456,9 @@ class PathPlanner(Node):
         self.loginfo(f"Grid start: {start}, Grid goal: {goal}") # confirm start/goal pos
         
         path  = self.a_star(cspacedata, start, goal) # generate path with A*
-        
-        short_path = path[:-4]
-        self.loginfo(f"A* returned path with {len(short_path)} points")
+        short_path = path[:-1]
+
+        self.loginfo(f"A* returned path with {len(short_path)} points that stops at {short_path[-1]}")
         
         optimized_path = PathPlanner.optimize_path(short_path) # optimize path by removing co-linear points
         self.loginfo(f"Optimized path has {len(optimized_path)} points")
