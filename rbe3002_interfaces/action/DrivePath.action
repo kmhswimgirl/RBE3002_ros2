@@ -1,0 +1,6 @@
+nav_msgs/Path path
+---
+bool success
+---
+geometry_msgs/Pose current_pose
+float32 percent
