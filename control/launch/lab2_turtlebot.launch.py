@@ -14,7 +14,7 @@ def generate_launch_description():
 
     lab2_node = Node(
         package='control',
-        executable='lab2_topic_only.py',
+        executable='tf_controller.py',
         name='lab2_driver',
         output='screen',
         parameters=[{'use_sim_time': False}]
