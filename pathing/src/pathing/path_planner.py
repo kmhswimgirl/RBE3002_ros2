@@ -8,7 +8,7 @@ from nav_msgs.srv import GetPlan
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 from geometry_msgs.msg import Point, PoseStamped
 from typing import List, Tuple
-from PriorityQueue import PriorityQueue
+from priority_queue import PriorityQueue
 from rclpy.qos import QoSProfile, DurabilityPolicy
 from queue import Queue
 
@@ -42,7 +42,7 @@ class PathPlanner(Node):
 
         # Subscribe to map topic
         self.map_sub = self.create_subscription(OccupancyGrid, '/map', self.map_callback, qos)
-        
+
     # ----------------------- Map Stuff ---------------------------------
     def map_callback(self, msg: OccupancyGrid): # maybe working function to use whenever the map gets changes (or when you re call the plan_path service)
         """

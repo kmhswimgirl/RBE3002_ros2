@@ -10,7 +10,8 @@ from scipy.spatial.transform import Rotation as R
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from tf2_geometry_msgs import PoseStamped
-# import tf2_geometry_msgs
+import tf2_geometry_msgs
+
 
 from tf2_ros.transform_listener import TransformListener
 from tf2_ros.buffer import Buffer
@@ -52,15 +53,12 @@ class Controller(Node):
         self.path_tolerance = self.get_parameter('path_tolerance').value
         self.stop_before_goal = self.get_parameter('poses_before_goal').value
 
-        self.odom_ready = False
-        self.drive_flag = False # false = can get new path, true = cannot get new path
-
         self.cb_group = ReentrantCallbackGroup() # allow for multiple things at once
 
         self.rate = self.create_rate(self.delay_rate) # Hz
 
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.update_odometry, 10, callback_group=self.cb_group)
-        self.rviz_goal = self.create_subscription(PoseStamped, '/move_base_simple/goal', self.get_path_from_planner, 10, callback_group=self.cb_group)
+        self.rviz_goal = self.create_subscription(PoseStamped, '/move_base_simple/goal', self.go_to, 10, callback_group=self.cb_group)
         self.sub_goal = self.create_subscription(PoseStamped, '/nav_goal', self.get_path_from_planner, 10, callback_group=self.cb_group)
         self.cmd_vel_pub = self.create_publisher(TwistStamped, '/cmd_vel', 10)
 
@@ -82,7 +80,6 @@ class Controller(Node):
         rotation = R.from_quat([quat.x, quat.y, quat.z, quat.w])
         euler = rotation.as_euler('xyz')
         self.pth = euler[2] # get the yaw value from the returned array
-        self.odom_ready = True # set odom data flag to true
     
     def send_speed(self, linear_speed, angular_speed): 
         msg = TwistStamped()
@@ -91,12 +88,6 @@ class Controller(Node):
 
         self.cmd_vel_pub.publish(msg) 
 
-    def normalize_angle(self, angle): # yoinked from a diff version
-        while angle > math.pi:
-            angle -= 2 * math.pi
-        while angle < -math.pi:
-            angle += 2 * math.pi
-        return angle
 
     def drive(self, distance: float, linear_speed: float):
         '''
@@ -110,7 +101,6 @@ class Controller(Node):
         initialy = self.py
         
         while abs(error) > tolerance and rclpy.ok(): # while robot is not close enough to goal
-        
             distanceTraveled = math.sqrt((self.px - initialx)**2 + (self.py - initialy)**2)
             self.send_speed(linear_speed, 0) 
             error = distance - distanceTraveled
@@ -129,12 +119,15 @@ class Controller(Node):
         tolerance = self.angular_tolerance
         goalAngle = angle
 
+        def normalize_angle(angle): # yoinked from a diff version
+            while angle > math.pi:
+                angle -= 2 * math.pi
+            while angle < -math.pi:
+                angle += 2 * math.pi
+            return angle
+
         while rclpy.ok():
-            if not self.odom_ready:
-                self.get_logger().warn('rotate: no odom, stopping')
-                self.send_speed(0.0, 0.0)
-                return
-            error = self.normalize_angle(goalAngle - self.pth)
+            error = normalize_angle(goalAngle - self.pth)
             if abs(error) <= tolerance:
                 break
             direction = aspeed if error > 0 else -aspeed
@@ -149,7 +142,6 @@ class Controller(Node):
         This method is a callback bound to a Subscriber.
         :param msg [PoseStamped] The target pose.
         """
-        self.drive_flag = True # do not get a now path
         pose_in_odom = self._tf_buffer.transform(msg,'odom', rclpy.duration.Duration(seconds=1))
    
         goal_pos_x = pose_in_odom.pose.position.x
@@ -168,13 +160,6 @@ class Controller(Node):
         self.get_next_point()
     
     def get_path_from_planner(self, msg: PoseStamped):
-        if not self.odom_ready:
-            self.get_logger().warn("No odometry data yet!")
-            return
-        
-        if self.drive_flag: # flag for not ready to get another path
-            self.get_logger().warn("still driving... please wait")
-            return
         
         # start pose from current odom
         start = PoseStamped()
@@ -217,33 +202,25 @@ class Controller(Node):
                 self.get_logger().info(f"Received path with {len(self.path_to_goal.poses)} poses")
             else:
                 self.get_logger().warn("path empty")
-                self.drive_flag = False
                 self.send_speed(0.0, 0.0)
 
         except Exception as e:
             self.get_logger().error(f"failed to get path {e}")
-            self.drive_flag = False
             self.send_speed(0.0, 0.0)
 
     def get_next_point(self): # iterate to the next pose in the path that was generated from path_planner
         if self.path_to_goal and self.current_path_index < len(self.path_to_goal.poses) - 1: # stop at pose before goal
             self.current_path_index += 1
-            self.drive_flag = True # do not get new path
             next_pose = self.path_to_goal.poses[self.current_path_index]
             self.go_to(next_pose)
             self.get_logger().info(f"Moving to waypoint {self.current_path_index}/{len(self.path_to_goal.poses)- self.stop_before_goal}")
         else:
             self.get_logger().info("Reached final destination!")
             self.send_speed(0.0, 0.0)
-            self.drive_flag = False # false = ready for path, true = not ready for path
             self.path_to_goal = None
             self.current_path_index = 0
     
-
-    # def update_drive_state(self):
-    #     self.drive_state.publish(self.drive)
-    
-def main(args=None): # i think i got this right? idk
+def main(args=None): # i think i got this right? idk  # pragma: no cover
     rclpy.init(args=args)
     node = Controller(0,0,0)
     executor = MultiThreadedExecutor()
@@ -255,5 +232,5 @@ def main(args=None): # i think i got this right? idk
     node.destroy_node()
     rclpy.shutdown()
 
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
     main()

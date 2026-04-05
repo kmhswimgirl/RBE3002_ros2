@@ -209,9 +209,7 @@ class Controller(Node):
         return CancelResponse.ACCEPT
     
     
-
-
-def main(args=None):
+def main(args=None):  # pragma: no cover
     rclpy.init(args=args)
     node = Controller()
     try:
@@ -221,5 +219,5 @@ def main(args=None):
     node.destroy_node()
     rclpy.shutdown()
 
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
     main()

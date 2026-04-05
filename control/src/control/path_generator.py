@@ -17,7 +17,6 @@ class PathGenerator(Node):
         self.frame = frame
 
         self.send_path = self.create_publisher(Path, '/path_generator', 10)
-
         self.get_logger().info('test path node started')
 
         self.generate_path()
@@ -46,7 +45,7 @@ class PathGenerator(Node):
         self.send_path.publish(path_of_poses)
         self.get_logger().info('published path!')
 
-def main(args=None):
+def main(args=None):  # pragma: no cover
     rclpy.init(args=args)
     node = PathGenerator(0,0,0,'odom')
     try:
@@ -57,5 +56,5 @@ def main(args=None):
         node.destroy_node()
         rclpy.shutdown() 
    
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
     main()
