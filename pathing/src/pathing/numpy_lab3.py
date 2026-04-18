@@ -40,12 +40,15 @@ class PathPlanner(Node):
         qos = QoSProfile(depth=100)
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
 
+        qos_cp = QoSProfile()
+        qos.durability = DurabilityPolicy.VOLATILE
+
         # map topics
         self.create_subscription(OccupancyGrid, '/map', self.handle_map, qos)
         self.safe_map = self.create_publisher(OccupancyGrid, '/map/safe', qos)
 
         # clicked point
-        # self.create_subscription(qos)
+        self.create_subscription(Point, '/clicked_point', self.clicked_point_callback, qos_cp)
     
         # visualization publishers
         self.expanded_cells = self.create_publisher(GridCells, "/path_planner/expanded_cells", qos) 
@@ -158,6 +161,9 @@ class PathPlanner(Node):
         cell_y = int((wp.y - r_origin_y)/resolution)
 
         return (cell_x, cell_y)
+    
+    def clicked_point_callback(self, msg:Point):
+        '''subscribe to rviz, tool, print'''
 
 
     def a_star(self, start: tuple[int, int], goal: tuple[int, int]) -> list[tuple[int, int]]:

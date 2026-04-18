@@ -8,7 +8,7 @@ from nav_msgs.srv import GetPlan
 from nav_msgs.msg import GridCells, OccupancyGrid, Path
 from geometry_msgs.msg import Point, PoseStamped
 from typing import List, Tuple
-from priority_queue import PriorityQueue
+# from priority_queue import PriorityQueue
 from rclpy.qos import QoSProfile, DurabilityPolicy
 from queue import Queue
 
@@ -324,7 +324,7 @@ class PathPlanner(Node):
         ### REQUIRED CREDIT
         self.loginfo("Executing A* from (%d,%d) to (%d,%d)" % (start[0], start[1], goal[0], goal[1]))
 
-        frontier = PriorityQueue()
+        frontier = Queue()
         frontier.put(start, 0)  # Use (element, priority) for your custom PriorityQueue
         came_from = {}
         cost_so_far = {}
