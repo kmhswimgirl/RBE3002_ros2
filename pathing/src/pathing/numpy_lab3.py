@@ -14,7 +14,7 @@ from rclpy.qos import QoSProfile, DurabilityPolicy
 from nav_msgs.srv import GetPlan
 import cv2 as cv
 
-from priority_queue import PriorityQueue 
+# from priority_queue import PriorityQueue 
 
 import tf2_geometry_msgs
 
@@ -125,10 +125,10 @@ class PathPlanner(Node):
         :param p [(int, int)] The cell coordinate.
         :return        [Point]         The position in the world.
         """
-        resolution = mapdata.info.resolution # note: in meters
+        resolution = mapdata.resolution # note: in meters
 
-        realOriginX = mapdata.info.origin.position.x
-        realOriginY = mapdata.info.origin.position.y
+        realOriginX = mapdata.origin.position.x
+        realOriginY = mapdata.origin.position.y
 
         realWorldX = p[0]*resolution + realOriginX + resolution/2
         realWorldY = p[1]*resolution + realOriginY + resolution/2
@@ -149,10 +149,10 @@ class PathPlanner(Node):
         :param wp      [Point]         The world coordinate.
         :return        [(int,int)]     The cell position as a tuple.
         """
-        resolution = mapdata.info.resolution
+        resolution = mapdata.resolution
 
-        r_origin_x = mapdata.info.origin.position.x
-        r_origin_y = mapdata.info.origin.position.y
+        r_origin_x = mapdata.origin.position.x
+        r_origin_y = mapdata.origin.position.y
 
         cell_x = int((wp.x - r_origin_x)/resolution)
         cell_y = int((wp.y - r_origin_y)/resolution)
@@ -192,7 +192,9 @@ class PathPlanner(Node):
         :param path     [(int,int)]     The cell coordinates corresponding to the current map
         :return         Path            
         """
-        world_path = []
+        path_msg = Path()
+        path_msg.header.frame_id = "map"
+        path_msg.header.stamp = self.get_clock().now().to_msg()
 
         for grid_cell in path:
             pose_message = PoseStamped()
@@ -200,9 +202,9 @@ class PathPlanner(Node):
             pose_message.header.frame_id = "map"
             pose_message.pose.position = PathPlanner.grid_to_world(self.mapinfo, grid_cell)
 
-            world_path.append(pose_message)
+            path_msg.poses.append(pose_message)
 
-        return world_path
+        return path_msg
 
 
     def neighbors_of_4(self, p: tuple[int, int]) -> list[tuple[int, int]]:
@@ -212,39 +214,56 @@ class PathPlanner(Node):
         :return        [[(int,int)]]   A list of walkable in 4 cardinal directions.
         """
         x,y = p[0], p[1]
-
+        height, width = self.map.shape
         locations = [(0,1),(0,-1),(1,0),(-1,0)]
         neighbors_4 = []
 
         for location in locations:
-
             new_location = (x + location[0], y + location[1])
 
-            if self.map[new_location] != 100:
-                neighbors_4.append(new_location)
-            else: 
+            if new_location[0] < 0 or new_location[0] >= width or new_location[1] < 0 or new_location[1] >= height:
                 continue
+
+            if self.map[new_location[1], new_location[0]] != 100: 
+                neighbors_4.append(new_location)
 
         return neighbors_4
 
-    
-    def neighbors_of_8( p: tuple[int, int]) -> list[tuple[int, int]]:
+        
+    def neighbors_of_8(self, p: tuple[int, int]) -> list[tuple[int, int]]:
         """
         Returns the safe 8-neighbors cells of (x,y) in the occupancy grid.
         :param p       [(int, int)]    The coordinate in the grid.
-        :return        [[(int,int)]]   A list of walkable in 4 cardinal directions.
+        :return        [[(int,int)]]   A list of walkable in all 8 directions.
         """
-        # INDIVIDUAL
-        pass
 
+        x,y = p[0], p[1]
+        height, width = self.map.shape
+        n_of_4 = self.neighbors_of_4(p)
+        more_locations = [(1,1),(-1,-1),(1,-1),(-1,1)]
+        neighbors = []
 
-    def get_edge_cost(self,p1: tuple[int, int],p2: tuple[int, int]):
+        for location in more_locations:
+
+            new_location = (x + location[0], y + location[1])
+
+            if new_location[0] < 0 or new_location[0] >= width or new_location[1] < 0 or new_location[1] >= height:
+                continue
+
+            if self.map[new_location[1], new_location[0]] != 100: 
+                neighbors.append(new_location)
+            else: 
+                continue
+        
+        return neighbors + n_of_4
+
+    def get_edge_cost(self, p1: tuple[int, int],p2: tuple[int, int]):
         """
         Compute cost to traverse between 2 nodes.
         :param p1       [(int, int)]    The coordinate in the grid of start.
         :param p2       [(int, int)]    The coordinate in the grid of end.
-
         """
+
         # INDIVIDUAL
         pass
 
@@ -290,7 +309,6 @@ class PathPlanner(Node):
 
         pass
 
-
     @staticmethod
     def optimize_path(path: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
         """
@@ -311,7 +329,6 @@ class PathPlanner(Node):
         """
         # EXTRA CREDIT      
         pass
-
 
 
 def main(args=None):
