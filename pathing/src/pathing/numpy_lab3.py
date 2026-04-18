@@ -40,7 +40,7 @@ class PathPlanner(Node):
         qos = QoSProfile(depth=100)
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
 
-        qos_cp = QoSProfile()
+        qos_cp = QoSProfile(depth=10)
         qos.durability = DurabilityPolicy.VOLATILE
 
         # map topics
